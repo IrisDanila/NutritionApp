@@ -9,13 +9,23 @@ import {
   Modal,
   Alert,
   FlatList,
+  Image,
+  ActivityIndicator,
+  Platform,
+  PermissionsAndroid,
+  Vibration,
 } from 'react-native';
+import {launchCamera, launchImageLibrary} from 'react-native-image-picker';
+import {InferenceSession, Tensor} from 'onnxruntime-react-native';
+import RNFS from 'react-native-fs';
 import {FOODS, FoodItem} from '../../assets/foods';
 import {
   storageService,
   NutritionItem,
   FoodHistory,
 } from '../services/storageService';
+import {getTopKPredictions, Prediction} from '../../assets/imageNetClasses';
+import {preprocessImageForResNet} from '../utils/imagePreprocessing';
 
 interface PopularFood {
   name: string;
@@ -44,10 +54,98 @@ const FoodScannerScreen = () => {
   const [history, setHistory] = useState<FoodHistory[]>([]);
   const [showMealTypeModal, setShowMealTypeModal] = useState(false);
   const [pendingFood, setPendingFood] = useState<NutritionItem | null>(null);
+  const [session, setSession] = useState<InferenceSession | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [detectedImage, setDetectedImage] = useState<string | null>(null);
+  const [predictions, setPredictions] = useState<Prediction[]>([]);
 
   useEffect(() => {
     loadHistory();
+    loadModel();
   }, []);
+
+  const ensureAndroidCameraPermission = async (): Promise<boolean> => {
+    if (Platform.OS !== 'android') return true;
+    const permission = PermissionsAndroid.PERMISSIONS.CAMERA;
+    const alreadyGranted =
+      (await PermissionsAndroid.check(permission)) === true;
+    if (alreadyGranted) return true;
+
+    const result = await PermissionsAndroid.request(permission, {
+      title: 'Camera permission',
+      message: 'Allow access to the camera to scan food images with AI.',
+      buttonPositive: 'Allow',
+      buttonNegative: 'Cancel',
+    });
+
+    return result === PermissionsAndroid.RESULTS.GRANTED;
+  };
+
+  const ensureAndroidPhotoPermission = async (): Promise<boolean> => {
+    if (Platform.OS !== 'android') return true;
+
+    // Android 13+ uses READ_MEDIA_IMAGES; older versions use READ_EXTERNAL_STORAGE.
+    const permission =
+      (PermissionsAndroid.PERMISSIONS as any).READ_MEDIA_IMAGES ??
+      PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE;
+
+    const alreadyGranted =
+      (await PermissionsAndroid.check(permission)) === true;
+    if (alreadyGranted) return true;
+
+    const result = await PermissionsAndroid.request(permission, {
+      title: 'Photo permission',
+      message: 'Allow access to photos so you can pick an image to scan.',
+      buttonPositive: 'Allow',
+      buttonNegative: 'Cancel',
+    });
+
+    return result === PermissionsAndroid.RESULTS.GRANTED;
+  };
+
+  const loadModel = async () => {
+    try {
+      // Construct the correct path for Android and iOS
+      let modelPath: string;
+      if (Platform.OS === 'android') {
+        // For Android, copy the model to a readable location first
+        modelPath = `${RNFS.DocumentDirectoryPath}/resnet50-v1-12-int8.onnx`;
+        const bundlePath = 'models/resnet50-v1-12-int8.onnx';
+        
+        // Check if model already exists in documents
+        const exists = await RNFS.exists(modelPath);
+        if (!exists) {
+          // Copy from assets to documents directory
+          await RNFS.copyFileAssets(bundlePath, modelPath);
+          console.log('Model copied to:', modelPath);
+        }
+      } else {
+        // For iOS
+        modelPath = `${RNFS.MainBundlePath}/assets/models/resnet50-v1-12-int8.onnx`;
+      }
+      
+      const modelSession = await InferenceSession.create(modelPath);
+      setSession(modelSession);
+      console.log('ResNet model loaded successfully from:', modelPath);
+
+      // Helpful diagnostics: input/output names and metadata.
+      // (These properties exist on onnxruntime-web; on RN they may vary, so keep it defensive.)
+      const sessionAny = modelSession as any;
+      const inputNames: string[] =
+        sessionAny.inputNames ?? Object.keys(sessionAny.inputMetadata ?? {});
+      const outputNames: string[] =
+        sessionAny.outputNames ?? Object.keys(sessionAny.outputMetadata ?? {});
+      if (inputNames.length > 0) {
+        console.log('Model inputNames:', inputNames);
+      }
+      if (outputNames.length > 0) {
+        console.log('Model outputNames:', outputNames);
+      }
+    } catch (error) {
+      console.error('Error loading model:', error);
+      Alert.alert('Model Error', 'Failed to load AI model. AI scanning may not work properly.');
+    }
+  };
 
   const loadHistory = async () => {
     const foodHistory = await storageService.getFoodHistory();
@@ -115,6 +213,12 @@ const FoodScannerScreen = () => {
   };
 
   const handleIWillEatThis = (item: NutritionItem) => {
+    // Haptic feedback: safe no-op on devices without vibrator; emulator may ignore it.
+    try {
+      Vibration.vibrate(35);
+    } catch {
+      // Ignore vibration errors to avoid any UX disruption.
+    }
     setPendingFood(item);
     setShowMealTypeModal(true);
   };
@@ -162,6 +266,188 @@ const FoodScannerScreen = () => {
         },
       ],
     );
+  };
+
+  const handleCameraCapture = async () => {
+    try {
+      if (Platform.OS === 'android') {
+        const granted = await ensureAndroidCameraPermission();
+        if (!granted) {
+          Alert.alert('Permission required', 'Camera permission was denied.');
+          return;
+        }
+      }
+
+      const result = await launchCamera({
+        mediaType: 'photo',
+        quality: 0.8,
+        saveToPhotos: false,
+      });
+
+      if (result.didCancel) {
+        return;
+      }
+
+      if (result.errorCode) {
+        if (result.errorCode === 'camera_unavailable') {
+          Alert.alert(
+            'Camera unavailable',
+            'This emulator/device has no camera available. Use the Gallery button to pick an image instead.',
+          );
+          return;
+        }
+        if (result.errorCode === 'permission') {
+          Alert.alert(
+            'Permission required',
+            'Camera permission is required to take a photo.',
+          );
+          return;
+        }
+        Alert.alert(
+          'Camera Error',
+          result.errorMessage || 'Failed to capture image',
+        );
+        return;
+      }
+
+      if (result.assets && result.assets[0]?.uri) {
+        await processImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Camera error:', error);
+      Alert.alert('Error', 'Failed to open camera');
+    }
+  };
+
+  const handleGalleryPick = async () => {
+    try {
+      if (Platform.OS === 'android') {
+        const granted = await ensureAndroidPhotoPermission();
+        if (!granted) {
+          Alert.alert('Permission required', 'Photo permission was denied.');
+          return;
+        }
+      }
+
+      const result = await launchImageLibrary({
+        mediaType: 'photo',
+        quality: 0.8,
+      });
+
+      if (result.didCancel) {
+        return;
+      }
+
+      if (result.errorCode) {
+        Alert.alert('Gallery Error', result.errorMessage || 'Failed to pick image');
+        return;
+      }
+
+      if (result.assets && result.assets[0]?.uri) {
+        await processImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Gallery error:', error);
+      Alert.alert('Error', 'Failed to open gallery');
+    }
+  };
+
+  const processImage = async (imageUri: string) => {
+    if (!session) {
+      Alert.alert('Error', 'AI model not loaded. Please restart the app.');
+      return;
+    }
+
+    setIsProcessing(true);
+    setDetectedImage(imageUri);
+    setPredictions([]);
+
+    try {
+      // Preprocess image
+      const imageTensor = await preprocessImageForResNet(imageUri);
+      
+      // Create ONNX tensor
+      const tensor = new Tensor('float32', imageTensor.data, imageTensor.dims);
+      
+      // Run inference
+      const sessionAny = session as any;
+      const inputName: string =
+        sessionAny.inputNames?.[0] ??
+        Object.keys(sessionAny.inputMetadata ?? {})[0] ??
+        'data';
+      const feeds: Record<string, Tensor> = {[inputName]: tensor};
+      const results = await session.run(feeds as any);
+      
+      // Get output tensor
+      const outputName: string =
+        sessionAny.outputNames?.[0] ?? Object.keys(results)[0];
+      const outputTensor = (results as any)[outputName];
+      if (!outputTensor || !outputTensor.data) {
+        throw new Error('Model returned no output data');
+      }
+
+      // Output might be Float32Array (fp32) or a typed array (quantized models).
+      // For ranking, treating values as numbers is sufficient.
+      const logits = Array.from(outputTensor.data as any, (v: any) => Number(v));
+      
+      // Apply softmax to get probabilities
+      const maxLogit = Math.max(...logits);
+      const expScores = logits.map(x => Math.exp(x - maxLogit));
+      const sumExp = expScores.reduce((a, b) => a + b, 0);
+      const probabilities = expScores.map(x => x / sumExp);
+      
+      // Get top 3 predictions
+      const topPredictions = getTopKPredictions(probabilities, 3);
+      setPredictions(topPredictions);
+      
+      // Show results
+      const resultsText = topPredictions
+        .map((pred, idx) => `${idx + 1}. ${pred.name} (${pred.confidence.toFixed(1)}%)`)
+        .join('\n');
+      
+      Alert.alert(
+        '🤖 AI Detection Results',
+        `Top 3 predictions:\n\n${resultsText}\n\nNote: This model is trained on ImageNet and may not accurately identify all food items.`,
+        [
+          {text: 'OK'},
+          {
+            text: 'Search for First Result',
+            onPress: () => {
+              if (topPredictions[0]) {
+                setSearchQuery(topPredictions[0].name);
+                handleSearchByQuery(topPredictions[0].name);
+              }
+            },
+          },
+        ],
+      );
+    } catch (error) {
+      console.error('Image processing error:', error);
+      Alert.alert('Processing Error', 'Failed to process image with AI model');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleSearchByQuery = (query: string) => {
+    const searchTerm = query.toLowerCase();
+    const found = FOODS.find(
+      food =>
+        food.name.toLowerCase().includes(searchTerm) ||
+        food.query.toLowerCase().includes(searchTerm),
+    );
+
+    if (found) {
+      const nutritionItem = convertToNutritionItem(found);
+      setSelectedFood(nutritionItem);
+      storageService.addFoodHistory([nutritionItem]);
+      loadHistory();
+    } else {
+      Alert.alert(
+        'No Match',
+        `Could not find "${query}" in our food database. Try searching manually.`,
+      );
+    }
   };
 
   const renderNutritionDetails = (item: NutritionItem) => {
@@ -238,12 +524,59 @@ const FoodScannerScreen = () => {
       {/* Header with AI Scan */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Food Scanner</Text>
-        <TouchableOpacity style={styles.scanButton} onPress={mockAIScan}>
-          <Text style={styles.scanButtonText}>📸 Scan with AI</Text>
-        </TouchableOpacity>
+        <View style={styles.scanButtonsContainer}>
+          <TouchableOpacity
+            style={styles.scanButton}
+            onPress={handleCameraCapture}
+            disabled={isProcessing || !session}>
+            <Text style={styles.scanButtonText}>📸 Scan with AI</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.galleryButton}
+            onPress={handleGalleryPick}
+            disabled={isProcessing || !session}>
+            <Text style={styles.scanButtonText}>🖼️ Gallery</Text>
+          </TouchableOpacity>
+        </View>
+        {isProcessing && (
+          <View style={styles.processingContainer}>
+            <ActivityIndicator size="small" color="white" />
+            <Text style={styles.processingText}>Processing image...</Text>
+          </View>
+        )}
       </View>
 
       <ScrollView style={styles.content}>
+        {/* AI Detection Results */}
+        {detectedImage && predictions.length > 0 && (
+          <View style={styles.aiResultsContainer}>
+            <Text style={styles.sectionTitle}>AI Detection Results</Text>
+            <Image source={{uri: detectedImage}} style={styles.detectedImage} />
+            <View style={styles.predictionsContainer}>
+              {predictions.map((pred, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.predictionCard}
+                  onPress={() => {
+                    setSearchQuery(pred.name);
+                    handleSearchByQuery(pred.name);
+                  }}>
+                  <View style={styles.predictionRank}>
+                    <Text style={styles.predictionRankText}>{index + 1}</Text>
+                  </View>
+                  <View style={styles.predictionInfo}>
+                    <Text style={styles.predictionName}>{pred.name}</Text>
+                    <Text style={styles.predictionConfidence}>
+                      {pred.confidence.toFixed(1)}% confidence
+                    </Text>
+                  </View>
+                  <Text style={styles.predictionArrow}>→</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
         {/* Search Bar */}
         <View style={styles.searchContainer}>
           <TextInput
@@ -384,19 +717,108 @@ const styles = StyleSheet.create({
     color: 'white',
     marginBottom: 15,
   },
+  scanButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
   scanButton: {
+    flex: 1,
     backgroundColor: 'rgba(255,255,255,0.2)',
     padding: 15,
     borderRadius: 15,
     alignItems: 'center',
+    marginRight: 5,
+  },
+  galleryButton: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    padding: 15,
+    borderRadius: 15,
+    alignItems: 'center',
+    marginLeft: 5,
   },
   scanButtonText: {
     color: 'white',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
+  },
+  processingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+    padding: 10,
+  },
+  processingText: {
+    color: 'white',
+    marginLeft: 10,
+    fontSize: 14,
   },
   content: {
     flex: 1,
+  },
+  aiResultsContainer: {
+    backgroundColor: 'white',
+    margin: 15,
+    padding: 15,
+    borderRadius: 15,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  detectedImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 10,
+    marginBottom: 15,
+    resizeMode: 'cover',
+  },
+  predictionsContainer: {
+    marginTop: 10,
+  },
+  predictionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F7FA',
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 8,
+  },
+  predictionRank: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#FF6B6B',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  predictionRankText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  predictionInfo: {
+    flex: 1,
+  },
+  predictionName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    textTransform: 'capitalize',
+  },
+  predictionConfidence: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+  },
+  predictionArrow: {
+    fontSize: 20,
+    color: '#FF6B6B',
+    fontWeight: 'bold',
   },
   searchContainer: {
     flexDirection: 'row',

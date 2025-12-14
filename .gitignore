@@ -2,6 +2,10 @@
 #
 .DS_Store
 
+# assets/models
+assets/models
+android/app/src/main/assets/
+
 # Xcode
 #
 build/
