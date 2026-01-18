@@ -8,27 +8,45 @@ import {
   PermissionsAndroid,
   Platform,
   Alert,
+  Image,
 } from 'react-native';
 import LottieView from 'lottie-react-native';
+import Sound from 'react-native-sound';
 import Geolocation from 'react-native-geolocation-service';
 import {storageService, MeditationLog, UserProfile} from '../services/storageService';
 import {useFocusEffect} from '@react-navigation/native';
 import {useTheme} from '../theme/ThemeContext';
 
 const DURATION_OPTIONS = [5, 10, 15, 20, 30];
+const MEDITATION_AUDIO_URI = Image.resolveAssetSource(
+  require('../../assets/music/Hazelwood - Coming Of Age (freetouse.com).mp3'),
+).uri;
 
 const MeditationScreen = () => {
   const {colors} = useTheme();
   const [durationMinutes, setDurationMinutes] = useState(10);
   const [remainingSec, setRemainingSec] = useState(durationMinutes * 60);
   const [isRunning, setIsRunning] = useState(false);
+  const [isMusicEnabled, setIsMusicEnabled] = useState(true);
   const [logs, setLogs] = useState<MeditationLog[]>([]);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const soundRef = useRef<Sound | null>(null);
 
   useEffect(() => {
     loadLogs();
     loadProfile();
+  }, []);
+
+  useEffect(() => {
+    Sound.setCategory('Playback');
+    return () => {
+      if (soundRef.current) {
+        soundRef.current.stop();
+        soundRef.current.release();
+        soundRef.current = null;
+      }
+    };
   }, []);
 
   useFocusEffect(
@@ -43,6 +61,15 @@ const MeditationScreen = () => {
       setRemainingSec(durationMinutes * 60);
     }
   }, [durationMinutes]);
+
+  useEffect(() => {
+    if (!isRunning) return;
+    if (isMusicEnabled) {
+      startAudio();
+    } else {
+      stopAudio();
+    }
+  }, [isMusicEnabled, isRunning]);
 
   useEffect(() => {
     if (!isRunning) return;
@@ -154,6 +181,9 @@ const MeditationScreen = () => {
   const startTimer = () => {
     if (isRunning) return;
     setIsRunning(true);
+    if (isMusicEnabled) {
+      startAudio();
+    }
   };
 
   const stopTimer = async (completed: boolean) => {
@@ -162,6 +192,7 @@ const MeditationScreen = () => {
       intervalRef.current = null;
     }
     setIsRunning(false);
+    stopAudio();
     if (completed) {
       await saveLog();
       Alert.alert('Session complete', 'Great job! Your meditation was logged.');
@@ -171,6 +202,31 @@ const MeditationScreen = () => {
   const resetTimer = () => {
     setIsRunning(false);
     setRemainingSec(durationMinutes * 60);
+    stopAudio();
+  };
+
+  const startAudio = () => {
+    if (soundRef.current) {
+      soundRef.current.setNumberOfLoops(-1);
+      soundRef.current.play();
+      return;
+    }
+
+    const sound = new Sound(MEDITATION_AUDIO_URI, undefined, error => {
+      if (error) {
+        console.warn('Failed to load meditation audio', error);
+        return;
+      }
+      sound.setNumberOfLoops(-1);
+      sound.play();
+    });
+    soundRef.current = sound;
+  };
+
+  const stopAudio = () => {
+    if (soundRef.current) {
+      soundRef.current.stop();
+    }
   };
 
   const formattedTime = useMemo(() => {
@@ -251,6 +307,25 @@ const MeditationScreen = () => {
             </TouchableOpacity>
           ))}
         </View>
+      </View>
+
+      <View style={[styles.musicCard, {backgroundColor: colors.card}]}> 
+        <View>
+          <Text style={[styles.sectionTitle, {color: colors.text}]}>Meditation music</Text>
+          <Text style={[styles.musicSubtitle, {color: colors.mutedText}]}> 
+            {isMusicEnabled ? 'Music on while timer runs' : 'Music is off'}
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={[
+            styles.musicToggle,
+            {backgroundColor: isMusicEnabled ? colors.primary : colors.border},
+          ]}
+          onPress={() => setIsMusicEnabled(prev => !prev)}>
+          <Text style={styles.musicToggleText}>
+            {isMusicEnabled ? 'On' : 'Off'}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       <View style={[styles.logsCard, {backgroundColor: colors.card}]}> 
@@ -383,6 +458,35 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 3,
+  },
+  musicCard: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    backgroundColor: 'white',
+    borderRadius: 18,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  musicSubtitle: {
+    fontSize: 12,
+    marginTop: 4,
+  },
+  musicToggle: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+  },
+  musicToggleText: {
+    color: 'white',
+    fontWeight: '700',
+    fontSize: 12,
   },
   sectionTitle: {
     fontSize: 16,
