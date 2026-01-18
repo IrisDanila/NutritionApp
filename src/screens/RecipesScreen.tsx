@@ -11,8 +11,10 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import {mealDBService, Meal, MealCategory} from '../services/mealDBService';
+import {useTheme} from '../theme/ThemeContext';
 
 const RecipesScreen = () => {
+  const {colors} = useTheme();
   const [categories, setCategories] = useState<MealCategory[]>([]);
   const [meals, setMeals] = useState<Meal[]>([]);
   const [selectedMeal, setSelectedMeal] = useState<Meal | null>(null);
@@ -67,17 +69,18 @@ const RecipesScreen = () => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, {backgroundColor: colors.background}]}> 
       {/* Search Bar */}
-      <View style={styles.searchContainer}>
+      <View style={[styles.searchContainer, {backgroundColor: colors.card}]}> 
         <TextInput
-          style={styles.searchInput}
+          style={[styles.searchInput, {color: colors.text}]}
           placeholder="Search recipes..."
+          placeholderTextColor={colors.mutedText}
           value={searchQuery}
           onChangeText={setSearchQuery}
           onSubmitEditing={searchMeals}
         />
-        <TouchableOpacity style={styles.searchButton} onPress={searchMeals}>
+        <TouchableOpacity style={[styles.searchButton, {backgroundColor: colors.primary}]} onPress={searchMeals}>
           <Text style={styles.searchButtonText}>🔍</Text>
         </TouchableOpacity>
       </View>
@@ -85,22 +88,24 @@ const RecipesScreen = () => {
       {/* Tabs */}
       <View style={styles.tabs}>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'categories' && styles.activeTab]}
+          style={[styles.tab, activeTab === 'categories' && [styles.activeTab, {backgroundColor: colors.primary}]]}
           onPress={() => setActiveTab('categories')}>
           <Text
             style={[
               styles.tabText,
+              {color: colors.mutedText},
               activeTab === 'categories' && styles.activeTabText,
             ]}>
             Categories
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'search' && styles.activeTab]}
+          style={[styles.tab, activeTab === 'search' && [styles.activeTab, {backgroundColor: colors.primary}]]}
           onPress={() => setActiveTab('search')}>
           <Text
             style={[
               styles.tabText,
+              {color: colors.mutedText},
               activeTab === 'search' && styles.activeTabText,
             ]}>
             Results
@@ -119,13 +124,13 @@ const RecipesScreen = () => {
               {categories.map(category => (
                 <TouchableOpacity
                   key={category.idCategory}
-                  style={styles.categoryCard}
+                  style={[styles.categoryCard, {backgroundColor: colors.card}]}
                   onPress={() => loadMealsByCategory(category.strCategory)}>
                   <Image
                     source={{uri: category.strCategoryThumb}}
                     style={styles.categoryImage}
                   />
-                  <Text style={styles.categoryName}>
+                  <Text style={[styles.categoryName, {color: colors.text}]}>
                     {category.strCategory}
                   </Text>
                 </TouchableOpacity>
@@ -135,7 +140,7 @@ const RecipesScreen = () => {
             <View style={styles.mealsGrid}>
               {meals.length === 0 ? (
                 <View style={styles.emptyState}>
-                  <Text style={styles.emptyStateText}>
+                  <Text style={[styles.emptyStateText, {color: colors.mutedText}]}>
                     Search for your favorite recipes!
                   </Text>
                 </View>
@@ -143,18 +148,18 @@ const RecipesScreen = () => {
                 meals.map(meal => (
                   <TouchableOpacity
                     key={meal.idMeal}
-                    style={styles.mealCard}
+                    style={[styles.mealCard, {backgroundColor: colors.card}]}
                     onPress={() => loadMealDetails(meal.idMeal)}>
                     <Image
                       source={{uri: meal.strMealThumb}}
                       style={styles.mealImage}
                     />
                     <View style={styles.mealInfo}>
-                      <Text style={styles.mealName} numberOfLines={2}>
+                      <Text style={[styles.mealName, {color: colors.text}]} numberOfLines={2}>
                         {meal.strMeal}
                       </Text>
                       {meal.strCategory && (
-                        <Text style={styles.mealCategory}>
+                        <Text style={[styles.mealCategory, {color: colors.mutedText}]}>
                           {meal.strCategory}
                         </Text>
                       )}
@@ -172,22 +177,22 @@ const RecipesScreen = () => {
         visible={selectedMeal !== null}
         animationType="slide"
         onRequestClose={() => setSelectedMeal(null)}>
-        <View style={styles.modalContainer}>
+        <View style={[styles.modalContainer, {backgroundColor: colors.background}]}> 
           {selectedMeal && (
             <ScrollView>
               <View style={styles.modalHeader}>
                 <TouchableOpacity
                   style={styles.closeButton}
                   onPress={() => setSelectedMeal(null)}>
-                  <Text style={styles.closeButtonText}>✕</Text>
+                  <Text style={[styles.closeButtonText, {color: colors.text}]}>✕</Text>
                 </TouchableOpacity>
               </View>
               <Image
                 source={{uri: selectedMeal.strMealThumb}}
                 style={styles.modalImage}
               />
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>{selectedMeal.strMeal}</Text>
+              <View style={[styles.modalContent, {backgroundColor: colors.card}]}> 
+                <Text style={[styles.modalTitle, {color: colors.text}]}>{selectedMeal.strMeal}</Text>
                 <View style={styles.modalTags}>
                   <View style={styles.tag}>
                     <Text style={styles.tagText}>
@@ -287,7 +292,7 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   activeTabText: {
-    color: '#4CAF50',
+    color: '#FFFFFF',
     fontWeight: 'bold',
   },
   content: {

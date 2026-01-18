@@ -19,12 +19,13 @@ import {launchCamera, launchImageLibrary} from 'react-native-image-picker';
 import {InferenceSession, Tensor} from 'onnxruntime-react-native';
 import RNFS from 'react-native-fs';
 import {FOODS, FoodItem} from '../../assets/foods';
+import {useTheme} from '../theme/ThemeContext';
 import {
   storageService,
   NutritionItem,
   FoodHistory,
 } from '../services/storageService';
-import {getTopKPredictions, Prediction} from '../../assets/imageNetClasses';
+import {getTopKPredictions, Prediction} from '../../assets/food101Classes';
 import {preprocessImageForResNet} from '../utils/imagePreprocessing';
 
 interface PopularFood {
@@ -49,6 +50,7 @@ const POPULAR_FOODS: PopularFood[] = [
 ];
 
 const FoodScannerScreen = ({route}: any) => {
+  const {colors} = useTheme();
   const preselectedMeal = route?.params?.preselectedMeal as 'breakfast' | 'lunch' | 'dinner' | undefined;
   const [selectedFood, setSelectedFood] = useState<NutritionItem | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -110,8 +112,8 @@ const FoodScannerScreen = ({route}: any) => {
       let modelPath: string;
       if (Platform.OS === 'android') {
         // For Android, copy the model to a readable location first
-        modelPath = `${RNFS.DocumentDirectoryPath}/resnet50-v1-12-int8.onnx`;
-        const bundlePath = 'models/resnet50-v1-12-int8.onnx';
+        modelPath = `${RNFS.DocumentDirectoryPath}/mobilenet_v2_food101.onnx`;
+        const bundlePath = 'models/mobilenet_v2_food101.onnx';
         
         // Check if model already exists in documents
         const exists = await RNFS.exists(modelPath);
@@ -122,12 +124,12 @@ const FoodScannerScreen = ({route}: any) => {
         }
       } else {
         // For iOS
-        modelPath = `${RNFS.MainBundlePath}/assets/models/resnet50-v1-12-int8.onnx`;
+        modelPath = `${RNFS.MainBundlePath}/assets/models/mobilenet_v2_food101.onnx`;
       }
       
       const modelSession = await InferenceSession.create(modelPath);
       setSession(modelSession);
-      console.log('ResNet model loaded successfully from:', modelPath);
+      console.log('Food101 MobileNet model loaded successfully from:', modelPath);
 
       // Helpful diagnostics: input/output names and metadata.
       // (These properties exist on onnxruntime-web; on RN they may vary, so keep it defensive.)
@@ -414,7 +416,7 @@ const FoodScannerScreen = ({route}: any) => {
       
       Alert.alert(
         '🤖 AI Detection Results',
-        `Top 3 predictions:\n\n${resultsText}\n\nNote: This model is trained on ImageNet and may not accurately identify all food items.`,
+        `Top 3 predictions:\n\n${resultsText}\n\nNote: This model is trained on Food-101 for food recognition.`,
         [
           {text: 'OK'},
           {
@@ -468,9 +470,9 @@ const FoodScannerScreen = ({route}: any) => {
     };
 
     return (
-      <View style={styles.nutritionDetails}>
+      <View style={[styles.nutritionDetails, {backgroundColor: colors.card}]}>
         <View style={styles.nutritionHeader}>
-          <Text style={styles.nutritionTitle}>{item.name}</Text>
+          <Text style={[styles.nutritionTitle, {color: colors.text}]}>{item.name}</Text>
           <TouchableOpacity
             style={styles.eatButton}
             onPress={() => handleIWillEatThis(item)}>
@@ -478,48 +480,48 @@ const FoodScannerScreen = ({route}: any) => {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.calorieCard}>
-          <Text style={styles.calorieValue}>
+        <View style={[styles.calorieCard, {backgroundColor: colors.surface}]}> 
+          <Text style={[styles.calorieValue, {color: colors.text}]}>
             {nutrition.calories.toFixed(0)}
           </Text>
-          <Text style={styles.calorieLabel}>Calories</Text>
+          <Text style={[styles.calorieLabel, {color: colors.mutedText}]}>Calories</Text>
         </View>
 
         <View style={styles.macroContainer}>
-          <View style={styles.macroCard}>
-            <Text style={styles.macroValue}>
+          <View style={[styles.macroCard, {backgroundColor: colors.surface}]}> 
+            <Text style={[styles.macroValue, {color: colors.text}]}>
               {nutrition.protein.toFixed(1)}g
             </Text>
-            <Text style={styles.macroLabel}>Protein</Text>
+            <Text style={[styles.macroLabel, {color: colors.mutedText}]}>Protein</Text>
           </View>
-          <View style={styles.macroCard}>
-            <Text style={styles.macroValue}>
+          <View style={[styles.macroCard, {backgroundColor: colors.surface}]}> 
+            <Text style={[styles.macroValue, {color: colors.text}]}>
               {nutrition.carbs.toFixed(1)}g
             </Text>
-            <Text style={styles.macroLabel}>Carbs</Text>
+            <Text style={[styles.macroLabel, {color: colors.mutedText}]}>Carbs</Text>
           </View>
-          <View style={styles.macroCard}>
-            <Text style={styles.macroValue}>{nutrition.fat.toFixed(1)}g</Text>
-            <Text style={styles.macroLabel}>Fat</Text>
+          <View style={[styles.macroCard, {backgroundColor: colors.surface}]}> 
+            <Text style={[styles.macroValue, {color: colors.text}]}>{nutrition.fat.toFixed(1)}g</Text>
+            <Text style={[styles.macroLabel, {color: colors.mutedText}]}>Fat</Text>
           </View>
         </View>
 
         <View style={styles.detailsContainer}>
           <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Fiber</Text>
-            <Text style={styles.detailValue}>
+            <Text style={[styles.detailLabel, {color: colors.mutedText}]}>Fiber</Text>
+            <Text style={[styles.detailValue, {color: colors.text}]}>
               {nutrition.fiber.toFixed(1)}g
             </Text>
           </View>
           <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Sugar</Text>
-            <Text style={styles.detailValue}>
+            <Text style={[styles.detailLabel, {color: colors.mutedText}]}>Sugar</Text>
+            <Text style={[styles.detailValue, {color: colors.text}]}>
               {nutrition.sugar.toFixed(1)}g
             </Text>
           </View>
           <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Serving Size</Text>
-            <Text style={styles.detailValue}>{item.serving_size_g}g</Text>
+            <Text style={[styles.detailLabel, {color: colors.mutedText}]}>Serving Size</Text>
+            <Text style={[styles.detailValue, {color: colors.text}]}>{item.serving_size_g}g</Text>
           </View>
         </View>
       </View>
@@ -527,9 +529,9 @@ const FoodScannerScreen = ({route}: any) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, {backgroundColor: colors.background}]}> 
       {/* Header with AI Scan */}
-      <View style={styles.header}>
+      <View style={[styles.header, {backgroundColor: colors.accent}]}> 
         <Text style={styles.headerTitle}>Food Scanner</Text>
         <View style={styles.scanButtonsContainer}>
           <TouchableOpacity
@@ -556,14 +558,14 @@ const FoodScannerScreen = ({route}: any) => {
       <ScrollView style={styles.content}>
         {/* AI Detection Results */}
         {detectedImage && predictions.length > 0 && (
-          <View style={styles.aiResultsContainer}>
-            <Text style={styles.sectionTitle}>AI Detection Results</Text>
+          <View style={[styles.aiResultsContainer, {backgroundColor: colors.card}]}> 
+            <Text style={[styles.sectionTitle, {color: colors.text}]}>AI Detection Results</Text>
             <Image source={{uri: detectedImage}} style={styles.detectedImage} />
             <View style={styles.predictionsContainer}>
               {predictions.map((pred, index) => (
                 <TouchableOpacity
                   key={index}
-                  style={styles.predictionCard}
+                  style={[styles.predictionCard, {backgroundColor: colors.surface}]}
                   onPress={() => {
                     setSearchQuery(pred.name);
                     handleSearchByQuery(pred.name);
@@ -572,12 +574,12 @@ const FoodScannerScreen = ({route}: any) => {
                     <Text style={styles.predictionRankText}>{index + 1}</Text>
                   </View>
                   <View style={styles.predictionInfo}>
-                    <Text style={styles.predictionName}>{pred.name}</Text>
-                    <Text style={styles.predictionConfidence}>
+                    <Text style={[styles.predictionName, {color: colors.text}]}>{pred.name}</Text>
+                    <Text style={[styles.predictionConfidence, {color: colors.mutedText}]}> 
                       {pred.confidence.toFixed(1)}% confidence
                     </Text>
                   </View>
-                  <Text style={styles.predictionArrow}>→</Text>
+                  <Text style={[styles.predictionArrow, {color: colors.accent}]}>→</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -585,30 +587,31 @@ const FoodScannerScreen = ({route}: any) => {
         )}
 
         {/* Search Bar */}
-        <View style={styles.searchContainer}>
+        <View style={[styles.searchContainer, {backgroundColor: colors.card}]}> 
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, {color: colors.text}]}
             placeholder="Search food (e.g., chicken breast, apple...)"
+            placeholderTextColor={colors.mutedText}
             value={searchQuery}
             onChangeText={setSearchQuery}
             onSubmitEditing={handleSearch}
           />
-          <TouchableOpacity style={styles.searchButton} onPress={handleSearch}>
+          <TouchableOpacity style={[styles.searchButton, {backgroundColor: colors.accent}]} onPress={handleSearch}>
             <Text style={styles.searchButtonText}>🔍</Text>
           </TouchableOpacity>
         </View>
 
         {/* Popular Foods */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Popular Foods</Text>
+          <Text style={[styles.sectionTitle, {color: colors.text}]}>Popular Foods</Text>
           <View style={styles.popularGrid}>
             {POPULAR_FOODS.map((food, index) => (
               <TouchableOpacity
                 key={index}
-                style={styles.popularCard}
+                style={[styles.popularCard, {backgroundColor: colors.card}]}
                 onPress={() => handlePopularFoodClick(food)}>
                 <Text style={styles.popularEmoji}>{food.emoji}</Text>
-                <Text style={styles.popularName}>{food.name}</Text>
+                <Text style={[styles.popularName, {color: colors.text}]}>{food.name}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -619,9 +622,9 @@ const FoodScannerScreen = ({route}: any) => {
 
         {/* History */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Scans</Text>
+          <Text style={[styles.sectionTitle, {color: colors.text}]}>Recent Scans</Text>
           {history.length === 0 ? (
-            <Text style={styles.emptyText}>No scan history yet</Text>
+            <Text style={[styles.emptyText, {color: colors.mutedText}]}>No scan history yet</Text>
           ) : (
             <FlatList
               data={history.slice(0, 5)}
@@ -629,19 +632,19 @@ const FoodScannerScreen = ({route}: any) => {
               showsHorizontalScrollIndicator={false}
               renderItem={({item}) => (
                 <TouchableOpacity
-                  style={styles.historyCard}
+                  style={[styles.historyCard, {backgroundColor: colors.card}]}
                   onPress={() => handleHistoryClick(item)}>
                   <View style={styles.historyContent}>
-                    <Text style={styles.historyName} numberOfLines={2}>
+                    <Text style={[styles.historyName, {color: colors.text}]} numberOfLines={2}>
                       {item.items.map(i => i.name).join(', ')}
                     </Text>
-                    <Text style={styles.historyCalories}>
+                    <Text style={[styles.historyCalories, {color: colors.mutedText}]}> 
                       {item.items
                         .reduce((sum, i) => sum + i.calories, 0)
                         .toFixed(0)}{' '}
                       cal
                     </Text>
-                    <Text style={styles.historyDate}>
+                    <Text style={[styles.historyDate, {color: colors.mutedText}]}> 
                       {new Date(item.timestamp).toLocaleDateString()}
                     </Text>
                   </View>
@@ -660,9 +663,9 @@ const FoodScannerScreen = ({route}: any) => {
         transparent
         onRequestClose={() => setShowMealTypeModal(false)}>
         <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Select Meal Type</Text>
-            <Text style={styles.modalSubtitle}>
+          <View style={[styles.modalContent, {backgroundColor: colors.card}]}> 
+            <Text style={[styles.modalTitle, {color: colors.text}]}>Select Meal Type</Text>
+            <Text style={[styles.modalSubtitle, {color: colors.mutedText}]}> 
               When will you eat this food?
             </Text>
 
@@ -697,7 +700,7 @@ const FoodScannerScreen = ({route}: any) => {
             <TouchableOpacity
               style={styles.cancelModalButton}
               onPress={() => setShowMealTypeModal(false)}>
-              <Text style={styles.cancelModalButtonText}>Cancel</Text>
+              <Text style={[styles.cancelModalButtonText, {color: colors.text}]}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>

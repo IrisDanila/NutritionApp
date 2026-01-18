@@ -108,15 +108,15 @@ android {
 }
 
 // Ensure the ONNX model is available in Android app assets at build time.
-// FoodScannerScreen loads it via RNFS.copyFileAssets('models/resnet50-v1-12-int8.onnx', ...)
-tasks.register('copyResnetOnnxModel', Copy) {
+// FoodScannerScreen loads it via RNFS.copyFileAssets('models/mobilenet_v2_food101.onnx', ...)
+tasks.register('copyFood101OnnxModel', Copy) {
     from(file("${rootProject.projectDir}/../assets/models"))
-    include('resnet50-v1-12-int8.onnx')
+    include('mobilenet_v2_food101.onnx')
     into(file("${projectDir}/src/main/assets/models"))
 }
 
 // Run before building so the asset is always present.
-preBuild.dependsOn(tasks.named('copyResnetOnnxModel'))
+preBuild.dependsOn(tasks.named('copyFood101OnnxModel'))
 
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin

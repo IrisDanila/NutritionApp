@@ -45,10 +45,24 @@ export interface UserProfile {
   weight: number; // in kg
   height: number; // in cm
   goal: 'lose' | 'maintain' | 'gain';
+  gender: 'male' | 'female';
   targetCalories: number;
   targetWater: number; // in ml
   targetSteps: number;
 }
+
+export interface MeditationLog {
+  id: string;
+  durationSec: number;
+  timestamp: number;
+  location?: {
+    city?: string;
+    region?: string;
+    country?: string;
+  };
+}
+
+export type ThemeMode = 'light' | 'dark';
 
 export interface FoodHistory {
   id: string;
@@ -62,6 +76,8 @@ const KEYS = {
   USER_PROFILE: 'user_profile',
   STREAK: 'streak_data',
   FOOD_HISTORY: 'food_history',
+  MEDITATION_LOGS: 'meditation_logs',
+  THEME_PREFERENCE: 'theme_preference',
 };
 
 export const storageService = {
@@ -106,24 +122,31 @@ export const storageService = {
   },
 
   getUserProfile: async (): Promise<UserProfile> => {
-    try {
-      const data = await AsyncStorage.getItem(KEYS.USER_PROFILE);
-      if (data) {
-        return JSON.parse(data);
-      }
-    } catch (error) {
-      console.error('Error getting user profile:', error);
-    }
-    return {
+    const defaultProfile: UserProfile = {
       name: 'User',
       age: 25,
       weight: 70,
       height: 170,
       goal: 'maintain',
+      gender: 'male',
       targetCalories: 2000,
       targetWater: 2000,
       targetSteps: 10000,
     };
+    try {
+      const data = await AsyncStorage.getItem(KEYS.USER_PROFILE);
+      if (data) {
+        const parsed = JSON.parse(data);
+        return {
+          ...defaultProfile,
+          ...parsed,
+          gender: parsed.gender ?? defaultProfile.gender,
+        };
+      }
+    } catch (error) {
+      console.error('Error getting user profile:', error);
+    }
+    return defaultProfile;
   },
 
   // Streak
@@ -198,6 +221,54 @@ export const storageService = {
       }
     } catch (error) {
       console.error('Error getting food history:', error);
+    }
+    return [];
+  },
+
+  // Theme preference
+  getThemePreference: async (): Promise<ThemeMode> => {
+    try {
+      const value = await AsyncStorage.getItem(KEYS.THEME_PREFERENCE);
+      if (value === 'dark' || value === 'light') {
+        return value;
+      }
+    } catch (error) {
+      console.error('Error getting theme preference:', error);
+    }
+    return 'light';
+  },
+
+  setThemePreference: async (mode: ThemeMode) => {
+    try {
+      await AsyncStorage.setItem(KEYS.THEME_PREFERENCE, mode);
+    } catch (error) {
+      console.error('Error saving theme preference:', error);
+    }
+  },
+
+  // Meditation Logs
+  addMeditationLog: async (log: Omit<MeditationLog, 'id'>) => {
+    try {
+      const logs = await storageService.getMeditationLogs();
+      const newEntry: MeditationLog = {
+        id: Date.now().toString(),
+        ...log,
+      };
+      logs.unshift(newEntry);
+      await AsyncStorage.setItem(KEYS.MEDITATION_LOGS, JSON.stringify(logs));
+    } catch (error) {
+      console.error('Error adding meditation log:', error);
+    }
+  },
+
+  getMeditationLogs: async (): Promise<MeditationLog[]> => {
+    try {
+      const data = await AsyncStorage.getItem(KEYS.MEDITATION_LOGS);
+      if (data) {
+        return JSON.parse(data);
+      }
+    } catch (error) {
+      console.error('Error getting meditation logs:', error);
     }
     return [];
   },

@@ -5,21 +5,24 @@ import HomeScreen from './screens/HomeScreen';
 import RecipesScreen from './screens/RecipesScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import FoodScannerScreen from './screens/FoodScannerScreen';
+import MeditationScreen from './screens/MeditationScreen';
+import {useTheme} from './theme/ThemeContext';
 
 const Tab = createBottomTabNavigator();
 
 const Navigation = () => {
+  const {colors} = useTheme();
   return (
     <NavigationContainer>
       <Tab.Navigator
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: '#4CAF50',
-          tabBarInactiveTintColor: '#999',
+          tabBarActiveTintColor: colors.primary,
+          tabBarInactiveTintColor: colors.mutedText,
           tabBarStyle: {
-            backgroundColor: 'white',
+            backgroundColor: colors.card,
             borderTopWidth: 1,
-            borderTopColor: '#E0E0E0',
+            borderTopColor: colors.border,
             paddingBottom: 5,
             paddingTop: 5,
             height: 60,
@@ -33,28 +36,45 @@ const Navigation = () => {
           name="Home"
           component={HomeScreen}
           options={{
-            tabBarIcon: ({color}) => <TabIcon emoji="🏠" color={color} />,
+            tabBarIcon: ({focused}) => (
+              <TabIcon emoji="🏠" focused={focused} />
+            ),
           }}
         />
         <Tab.Screen
           name="Scanner"
           component={FoodScannerScreen}
           options={{
-            tabBarIcon: ({color}) => <TabIcon emoji="📸" color={color} />,
+            tabBarIcon: ({focused}) => (
+              <TabIcon emoji="📸" focused={focused} />
+            ),
           }}
         />
         <Tab.Screen
           name="Recipes"
           component={RecipesScreen}
           options={{
-            tabBarIcon: ({color}) => <TabIcon emoji="🍳" color={color} />,
+            tabBarIcon: ({focused}) => (
+              <TabIcon emoji="🍳" focused={focused} />
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="Meditate"
+          component={MeditationScreen}
+          options={{
+            tabBarIcon: ({focused}) => (
+              <TabIcon emoji="🧘" focused={focused} />
+            ),
           }}
         />
         <Tab.Screen
           name="Profile"
           component={ProfileScreen}
           options={{
-            tabBarIcon: ({color}) => <TabIcon emoji="👤" color={color} />,
+            tabBarIcon: ({focused}) => (
+              <TabIcon emoji="👤" focused={focused} />
+            ),
           }}
         />
       </Tab.Navigator>
@@ -62,9 +82,9 @@ const Navigation = () => {
   );
 };
 
-const TabIcon = ({emoji, color}: {emoji: string; color: string}) => {
+const TabIcon = ({emoji, focused}: {emoji: string; focused: boolean}) => {
   const {Text} = require('react-native');
-  return <Text style={{fontSize: 24, opacity: color === '#4CAF50' ? 1 : 0.5}}>{emoji}</Text>;
+  return <Text style={{fontSize: 24, opacity: focused ? 1 : 0.5}}>{emoji}</Text>;
 };
 
 export default Navigation;

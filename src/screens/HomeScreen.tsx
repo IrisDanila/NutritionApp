@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useCallback} from 'react';
+import React, {useState, useEffect, useCallback, useRef} from 'react';
 import {
   View,
   Text,
@@ -8,9 +8,18 @@ import {
   TextInput,
   Modal,
   RefreshControl,
+  PermissionsAndroid,
+  Platform,
 } from 'react-native';
 import {useFocusEffect, useNavigation} from '@react-navigation/native';
-import {storageService, Activity, DailyData} from '../services/storageService';
+import {storageService, Activity, DailyData, UserProfile} from '../services/storageService';
+import {useTheme} from '../theme/ThemeContext';
+import {
+  accelerometer,
+  SensorTypes,
+  setUpdateIntervalForType,
+} from 'react-native-sensors';
+import {map} from 'rxjs/operators';
 
 interface NutritionSummary {
   calories: number;
@@ -20,28 +29,43 @@ interface NutritionSummary {
 }
 
 const HomeScreen = () => {
+  const {colors} = useTheme();
   const navigation = useNavigation<any>();
   const [streak, setStreak] = useState(0);
   const [dailyData, setDailyData] = useState<DailyData | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [showWaterModal, setShowWaterModal] = useState(false);
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [newActivity, setNewActivity] = useState({
     name: '',
     duration: '',
     caloriesBurned: '',
   });
   const [waterAmount, setWaterAmount] = useState('250');
-  const [steps, setSteps] = useState('0');
+  const [steps, setSteps] = useState(0);
+  const [targetSteps, setTargetSteps] = useState(10000);
   const [notes, setNotes] = useState('');
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [calendarDays, setCalendarDays] = useState<
+    {date: string; day: number; metGoals: boolean}[]
+  >([]);
+  const [calendarMonthLabel, setCalendarMonthLabel] = useState('');
+  const stepsRef = useRef(0);
+  const lastStepTimeRef = useRef(0);
+  const lastPersistRef = useRef(0);
 
   const loadData = async () => {
     const today = new Date().toISOString().split('T')[0];
     const data = await storageService.getDailyData(today);
     const currentStreak = await storageService.getStreak();
+    const profile = await storageService.getUserProfile();
     setDailyData(data);
     setStreak(currentStreak);
-    setSteps(data.steps.toString());
+    setSteps(data.steps);
+    stepsRef.current = data.steps;
+    setTargetSteps(profile.targetSteps || 10000);
+    setProfile(profile);
     setNotes(data.notes);
   };
 
@@ -92,12 +116,52 @@ const HomeScreen = () => {
     }, 0);
   };
 
+  const getDailyCalories = (data: DailyData): number => {
+    return data.meals.reduce((total, meal) => {
+      return total + meal.items.reduce((sum, item) => sum + item.calories, 0);
+    }, 0);
+  };
+
+  const didMeetGoals = (data: DailyData, profile: UserProfile): boolean => {
+    const calories = getDailyCalories(data);
+    const withinCalories = calories <= profile.targetCalories;
+    const waterOk = data.waterIntake >= profile.targetWater;
+    const stepsOk = data.steps >= profile.targetSteps;
+    return withinCalories && waterOk && stepsOk;
+  };
+
+  const loadCalendarForMonth = async (baseDate: Date) => {
+    if (!profile) return;
+    const year = baseDate.getFullYear();
+    const month = baseDate.getMonth();
+    const lastDay = new Date(year, month + 1, 0);
+
+    const label = baseDate.toLocaleString(undefined, {
+      month: 'long',
+      year: 'numeric',
+    });
+    setCalendarMonthLabel(label);
+
+    const days: {date: string; day: number; metGoals: boolean}[] = [];
+    for (let day = 1; day <= lastDay.getDate(); day++) {
+      const date = new Date(year, month, day);
+      const dateStr = date.toISOString().split('T')[0];
+      const daily = await storageService.getDailyData(dateStr);
+      const metGoals = didMeetGoals(daily, profile);
+      days.push({date: dateStr, day, metGoals});
+    }
+    setCalendarDays(days);
+  };
+
   const getTotalCaloriesBurned = (): number => {
     if (!dailyData) return 0;
-    return dailyData.activities.reduce(
+    const activityCalories = dailyData.activities.reduce(
       (total, activity) => total + activity.caloriesBurned,
       0,
     );
+    // Estimate calories from steps (rough average: ~0.04 kcal per step).
+    const stepCalories = Math.round(dailyData.steps * 0.04);
+    return activityCalories + stepCalories;
   };
 
   const handleAddActivity = async () => {
@@ -121,30 +185,104 @@ const HomeScreen = () => {
     }
   };
 
-  const handleUpdateSteps = async () => {
-    if (steps) {
-      await storageService.updateSteps(parseInt(steps));
-      loadData();
-    }
-  };
-
   const handleUpdateNotes = async () => {
     await storageService.updateNotes(notes);
   };
 
+  const ensureActivityRecognitionPermission = async (): Promise<boolean> => {
+    if (Platform.OS !== 'android') return true;
+    const permission = PermissionsAndroid.PERMISSIONS.ACTIVITY_RECOGNITION;
+    if (!permission) return true;
+    const alreadyGranted =
+      (await PermissionsAndroid.check(permission)) === true;
+    if (alreadyGranted) return true;
+    const result = await PermissionsAndroid.request(permission, {
+      title: 'Activity recognition permission',
+      message:
+        'Allow access to activity recognition so the app can track your steps.',
+      buttonPositive: 'Allow',
+      buttonNegative: 'Cancel',
+    });
+    return result === PermissionsAndroid.RESULTS.GRANTED;
+  };
+
+  useEffect(() => {
+    let subscription: any;
+    const start = async () => {
+      const granted = await ensureActivityRecognitionPermission();
+      if (!granted) return;
+
+      setUpdateIntervalForType(SensorTypes.accelerometer, 200);
+
+      subscription = accelerometer
+        .pipe(
+          map(({x, y, z, timestamp}) => ({
+            magnitude: Math.sqrt(x * x + y * y + z * z),
+            timestamp: timestamp ?? Date.now(),
+          })),
+        )
+        .subscribe(({magnitude, timestamp}: any) => {
+          const delta = Math.abs(magnitude - 1); // remove gravity
+          const now = timestamp as number;
+          const minStepInterval = 350;
+          const stepThreshold = 1.0;
+
+          if (
+            delta > stepThreshold &&
+            now - lastStepTimeRef.current > minStepInterval
+          ) {
+            lastStepTimeRef.current = now;
+            stepsRef.current += 1;
+            setSteps(stepsRef.current);
+          }
+        });
+    };
+
+    start();
+    return () => {
+      if (subscription && subscription.unsubscribe) {
+        subscription.unsubscribe();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const now = Date.now();
+    if (now - lastPersistRef.current > 5000) {
+      storageService.updateSteps(steps);
+      lastPersistRef.current = now;
+    }
+  }, [steps]);
+
   const breakfast = getMealNutrition('breakfast');
   const lunch = getMealNutrition('lunch');
   const dinner = getMealNutrition('dinner');
+  const calendarFirstDay = calendarDays.length
+    ? new Date(`${calendarDays[0].date}T00:00:00`).getDay()
+    : 0;
+  const calendarCells: Array<
+    {date: string; day: number; metGoals: boolean} | null
+  > = [...Array(calendarFirstDay).fill(null), ...calendarDays];
 
   return (
     <ScrollView
-      style={styles.container}
+      style={[styles.container, {backgroundColor: colors.background}]}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }>
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Your Nutrition Journey</Text>
+      <View style={[styles.header, {backgroundColor: colors.primary}]}> 
+        <View style={styles.headerRow}>
+          <Text style={styles.headerTitle}>Your Nutrition Journey</Text>
+          <TouchableOpacity
+            style={styles.calendarButton}
+            onPress={async () => {
+              await loadCalendarForMonth(new Date());
+              setShowCalendarModal(true);
+            }}>
+            <Text style={styles.calendarButtonText}>🗓️</Text>
+          </TouchableOpacity>
+        </View>
         <View style={styles.streakContainer}>
           <Text style={styles.streakEmoji}>🔥</Text>
           <Text style={styles.streakText}>{streak} Day Streak</Text>
@@ -152,26 +290,28 @@ const HomeScreen = () => {
       </View>
 
       {/* Calories Summary */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Today's Calories</Text>
+      <View style={[styles.card, {backgroundColor: colors.card}]}> 
+        <Text style={[styles.cardTitle, {color: colors.text}]}>Today's Calories</Text>
         <View style={styles.caloriesContainer}>
-          <Text style={styles.caloriesNumber}>{getTotalCalories().toFixed(0)}</Text>
-          <Text style={styles.caloriesLabel}>consumed</Text>
+          <Text style={[styles.caloriesNumber, {color: colors.text}]}>
+            {getTotalCalories().toFixed(0)}
+          </Text>
+          <Text style={[styles.caloriesLabel, {color: colors.mutedText}]}>consumed</Text>
         </View>
-        <Text style={styles.caloriesBurned}>
+        <Text style={[styles.caloriesBurned, {color: colors.mutedText}]}> 
           🔥 {getTotalCaloriesBurned()} calories burned
         </Text>
       </View>
 
       {/* Meals */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Meals</Text>
+      <View style={[styles.card, {backgroundColor: colors.card}]}> 
+        <Text style={[styles.cardTitle, {color: colors.text}]}>Meals</Text>
 
         <View style={styles.mealItem}>
           <View style={styles.mealHeader}>
             <View style={styles.mealTitleRow}>
               <Text style={styles.mealEmoji}>🌅</Text>
-              <Text style={styles.mealName}>Breakfast</Text>
+              <Text style={[styles.mealName, {color: colors.text}]}>Breakfast</Text>
             </View>
             <TouchableOpacity
               style={styles.mealAddButton}
@@ -180,16 +320,16 @@ const HomeScreen = () => {
             </TouchableOpacity>
           </View>
           <View style={styles.nutritionRow}>
-            <Text style={styles.nutritionText}>
+            <Text style={[styles.nutritionText, {color: colors.mutedText}]}> 
               {breakfast.calories.toFixed(0)} cal
             </Text>
-            <Text style={styles.nutritionText}>
+            <Text style={[styles.nutritionText, {color: colors.mutedText}]}> 
               P: {breakfast.protein.toFixed(0)}g
             </Text>
-            <Text style={styles.nutritionText}>
+            <Text style={[styles.nutritionText, {color: colors.mutedText}]}> 
               C: {breakfast.carbs.toFixed(0)}g
             </Text>
-            <Text style={styles.nutritionText}>
+            <Text style={[styles.nutritionText, {color: colors.mutedText}]}> 
               F: {breakfast.fat.toFixed(0)}g
             </Text>
           </View>
@@ -199,7 +339,7 @@ const HomeScreen = () => {
           <View style={styles.mealHeader}>
             <View style={styles.mealTitleRow}>
               <Text style={styles.mealEmoji}>☀️</Text>
-              <Text style={styles.mealName}>Lunch</Text>
+              <Text style={[styles.mealName, {color: colors.text}]}>Lunch</Text>
             </View>
             <TouchableOpacity
               style={styles.mealAddButton}
@@ -208,12 +348,12 @@ const HomeScreen = () => {
             </TouchableOpacity>
           </View>
           <View style={styles.nutritionRow}>
-            <Text style={styles.nutritionText}>
+            <Text style={[styles.nutritionText, {color: colors.mutedText}]}> 
               {lunch.calories.toFixed(0)} cal
             </Text>
-            <Text style={styles.nutritionText}>P: {lunch.protein.toFixed(0)}g</Text>
-            <Text style={styles.nutritionText}>C: {lunch.carbs.toFixed(0)}g</Text>
-            <Text style={styles.nutritionText}>F: {lunch.fat.toFixed(0)}g</Text>
+            <Text style={[styles.nutritionText, {color: colors.mutedText}]}>P: {lunch.protein.toFixed(0)}g</Text>
+            <Text style={[styles.nutritionText, {color: colors.mutedText}]}>C: {lunch.carbs.toFixed(0)}g</Text>
+            <Text style={[styles.nutritionText, {color: colors.mutedText}]}>F: {lunch.fat.toFixed(0)}g</Text>
           </View>
         </View>
 
@@ -221,7 +361,7 @@ const HomeScreen = () => {
           <View style={styles.mealHeader}>
             <View style={styles.mealTitleRow}>
               <Text style={styles.mealEmoji}>🌙</Text>
-              <Text style={styles.mealName}>Dinner</Text>
+              <Text style={[styles.mealName, {color: colors.text}]}>Dinner</Text>
             </View>
             <TouchableOpacity
               style={styles.mealAddButton}
@@ -230,24 +370,24 @@ const HomeScreen = () => {
             </TouchableOpacity>
           </View>
           <View style={styles.nutritionRow}>
-            <Text style={styles.nutritionText}>
+            <Text style={[styles.nutritionText, {color: colors.mutedText}]}> 
               {dinner.calories.toFixed(0)} cal
             </Text>
-            <Text style={styles.nutritionText}>
+            <Text style={[styles.nutritionText, {color: colors.mutedText}]}> 
               P: {dinner.protein.toFixed(0)}g
             </Text>
-            <Text style={styles.nutritionText}>
+            <Text style={[styles.nutritionText, {color: colors.mutedText}]}> 
               C: {dinner.carbs.toFixed(0)}g
             </Text>
-            <Text style={styles.nutritionText}>F: {dinner.fat.toFixed(0)}g</Text>
+            <Text style={[styles.nutritionText, {color: colors.mutedText}]}>F: {dinner.fat.toFixed(0)}g</Text>
           </View>
         </View>
       </View>
 
       {/* Activities */}
-      <View style={styles.card}>
+      <View style={[styles.card, {backgroundColor: colors.card}]}> 
         <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>Activities</Text>
+          <Text style={[styles.cardTitle, {color: colors.text}]}>Activities</Text>
           <TouchableOpacity
             style={styles.addButton}
             onPress={() => setShowActivityModal(true)}>
@@ -258,15 +398,21 @@ const HomeScreen = () => {
         <View style={styles.activityItem}>
           <Text style={styles.activityEmoji}>👟</Text>
           <View style={styles.activityContent}>
-            <Text style={styles.activityName}>Steps</Text>
-            <TextInput
-              style={styles.stepsInput}
-              value={steps}
-              onChangeText={setSteps}
-              onBlur={handleUpdateSteps}
-              keyboardType="numeric"
-              placeholder="0"
-            />
+            <Text style={[styles.activityName, {color: colors.text}]}>Steps</Text>
+            <Text style={[styles.stepsValue, {color: colors.mutedText}]}>
+              {steps.toLocaleString()} / {targetSteps.toLocaleString()} steps
+            </Text>
+            <View style={[styles.stepsProgress, {backgroundColor: colors.border}]}> 
+              <View
+                style={[
+                  styles.stepsProgressBar,
+                  {
+                    width: `${Math.min((steps / targetSteps) * 100, 100)}%`,
+                    backgroundColor: colors.primary,
+                  },
+                ]}
+              />
+            </View>
           </View>
         </View>
 
@@ -274,8 +420,8 @@ const HomeScreen = () => {
           <View key={activity.id} style={styles.activityItem}>
             <Text style={styles.activityEmoji}>💪</Text>
             <View style={styles.activityContent}>
-              <Text style={styles.activityName}>{activity.name}</Text>
-              <Text style={styles.activityDetails}>
+              <Text style={[styles.activityName, {color: colors.text}]}>{activity.name}</Text>
+              <Text style={[styles.activityDetails, {color: colors.mutedText}]}>
                 {activity.duration} min • {activity.caloriesBurned} cal
               </Text>
             </View>
@@ -284,9 +430,9 @@ const HomeScreen = () => {
       </View>
 
       {/* Water Tracker */}
-      <View style={styles.card}>
+      <View style={[styles.card, {backgroundColor: colors.card}]}> 
         <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>Water Intake</Text>
+          <Text style={[styles.cardTitle, {color: colors.text}]}>Water Intake</Text>
           <TouchableOpacity
             style={styles.addButton}
             onPress={() => setShowWaterModal(true)}>
@@ -295,11 +441,11 @@ const HomeScreen = () => {
         </View>
         <View style={styles.waterContainer}>
           <Text style={styles.waterEmoji}>💧</Text>
-          <Text style={styles.waterAmount}>
+          <Text style={[styles.waterAmount, {color: colors.info}]}> 
             {dailyData?.waterIntake || 0} ml
           </Text>
         </View>
-        <View style={styles.waterProgress}>
+        <View style={[styles.waterProgress, {backgroundColor: colors.border}]}> 
           <View
             style={[
               styles.waterProgressBar,
@@ -308,22 +454,24 @@ const HomeScreen = () => {
                   ((dailyData?.waterIntake || 0) / 2000) * 100,
                   100,
                 )}%`,
+                backgroundColor: colors.info,
               },
             ]}
           />
         </View>
-        <Text style={styles.waterGoal}>Goal: 2000 ml</Text>
+        <Text style={[styles.waterGoal, {color: colors.mutedText}]}>Goal: 2000 ml</Text>
       </View>
 
       {/* Notes */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Notes</Text>
+      <View style={[styles.card, {backgroundColor: colors.card}]}> 
+        <Text style={[styles.cardTitle, {color: colors.text}]}>Notes</Text>
         <TextInput
-          style={styles.notesInput}
+          style={[styles.notesInput, {color: colors.text, borderColor: colors.border, backgroundColor: colors.surface}]}
           value={notes}
           onChangeText={setNotes}
           onBlur={handleUpdateNotes}
           placeholder="How are you feeling today?"
+          placeholderTextColor={colors.mutedText}
           multiline
           numberOfLines={4}
         />
@@ -336,19 +484,21 @@ const HomeScreen = () => {
         transparent
         onRequestClose={() => setShowActivityModal(false)}>
         <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Add Activity</Text>
+          <View style={[styles.modalContent, {backgroundColor: colors.card}]}> 
+            <Text style={[styles.modalTitle, {color: colors.text}]}>Add Activity</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, {color: colors.text, borderColor: colors.border, backgroundColor: colors.surface}]}
               placeholder="Activity name (e.g., Running)"
+              placeholderTextColor={colors.mutedText}
               value={newActivity.name}
               onChangeText={text =>
                 setNewActivity({...newActivity, name: text})
               }
             />
             <TextInput
-              style={styles.input}
+              style={[styles.input, {color: colors.text, borderColor: colors.border, backgroundColor: colors.surface}]}
               placeholder="Duration (minutes)"
+              placeholderTextColor={colors.mutedText}
               value={newActivity.duration}
               onChangeText={text =>
                 setNewActivity({...newActivity, duration: text})
@@ -356,8 +506,9 @@ const HomeScreen = () => {
               keyboardType="numeric"
             />
             <TextInput
-              style={styles.input}
+              style={[styles.input, {color: colors.text, borderColor: colors.border, backgroundColor: colors.surface}]}
               placeholder="Calories burned"
+              placeholderTextColor={colors.mutedText}
               value={newActivity.caloriesBurned}
               onChangeText={text =>
                 setNewActivity({...newActivity, caloriesBurned: text})
@@ -387,15 +538,15 @@ const HomeScreen = () => {
         transparent
         onRequestClose={() => setShowWaterModal(false)}>
         <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Add Water</Text>
+          <View style={[styles.modalContent, {backgroundColor: colors.card}]}> 
+            <Text style={[styles.modalTitle, {color: colors.text}]}>Add Water</Text>
             <View style={styles.waterOptions}>
               {[250, 500, 750, 1000].map(amount => (
                 <TouchableOpacity
                   key={amount}
                   style={styles.waterOption}
                   onPress={() => setWaterAmount(amount.toString())}>
-                  <Text style={styles.waterOptionText}>{amount} ml</Text>
+                  <Text style={[styles.waterOptionText, {color: colors.text}]}>{amount} ml</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -421,6 +572,72 @@ const HomeScreen = () => {
           </View>
         </View>
       </Modal>
+
+      {/* Goals Calendar Modal */}
+      <Modal
+        visible={showCalendarModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setShowCalendarModal(false)}>
+        <View style={styles.modalContainer}>
+          <View style={[styles.calendarModalContent, {backgroundColor: colors.card}]}> 
+            <View style={styles.calendarHeader}>
+              <Text style={[styles.calendarTitle, {color: colors.text}]}> 
+                {calendarMonthLabel}
+              </Text>
+              <TouchableOpacity
+                style={styles.calendarCloseButton}
+                onPress={() => setShowCalendarModal(false)}>
+                <Text style={[styles.calendarCloseText, {color: colors.text}]}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.calendarWeekRow}>
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                <Text
+                  key={day}
+                  style={[styles.calendarWeekText, {color: colors.mutedText}]}> 
+                  {day}
+                </Text>
+              ))}
+            </View>
+            <View style={styles.calendarGrid}>
+              {calendarCells.map((item, index) =>
+                item ? (
+                  <View
+                    key={item.date}
+                    style={[
+                      styles.calendarDay,
+                      item.metGoals
+                        ? styles.calendarDaySuccess
+                        : styles.calendarDayFail,
+                    ]}>
+                    <Text style={styles.calendarDayNumber}>{item.day}</Text>
+                    <Text style={styles.calendarDayStatus}>
+                      {item.metGoals ? '✓' : '✕'}
+                    </Text>
+                  </View>
+                ) : (
+                  <View key={`empty-${index}`} style={styles.calendarDayEmpty} />
+                ),
+              )}
+            </View>
+            <View style={styles.calendarLegend}>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, styles.calendarDaySuccess]} />
+                <Text style={[styles.legendText, {color: colors.text}]}> 
+                  Goal met
+                </Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, styles.calendarDayFail]} />
+                <Text style={[styles.legendText, {color: colors.text}]}> 
+                  Goal missed
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 };
@@ -437,11 +654,28 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
   },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
     color: 'white',
     marginBottom: 10,
+  },
+  calendarButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calendarButtonText: {
+    fontSize: 18,
+    color: 'white',
   },
   streakContainer: {
     flexDirection: 'row',
@@ -574,15 +808,21 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 4,
   },
-  stepsInput: {
+  stepsValue: {
     fontSize: 14,
     color: '#666',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
     marginTop: 4,
+  },
+  stepsProgress: {
+    height: 8,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginTop: 8,
+  },
+  stepsProgressBar: {
+    height: '100%',
+    backgroundColor: '#4CAF50',
   },
   addButton: {
     backgroundColor: '#4CAF50',
@@ -646,6 +886,95 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 25,
     width: '85%',
+  },
+  calendarModalContent: {
+    borderRadius: 20,
+    padding: 20,
+    width: '90%',
+  },
+  calendarHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  calendarTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  calendarCloseButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calendarCloseText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  calendarWeekRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  calendarWeekText: {
+    width: '14.2%',
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  calendarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  calendarDay: {
+    width: '14.2%',
+    aspectRatio: 1,
+    borderRadius: 8,
+    marginBottom: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calendarDayEmpty: {
+    width: '14.2%',
+    aspectRatio: 1,
+    marginBottom: 8,
+  },
+  calendarDaySuccess: {
+    backgroundColor: '#4CAF50',
+  },
+  calendarDayFail: {
+    backgroundColor: '#FF6B6B',
+  },
+  calendarDayNumber: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  calendarDayStatus: {
+    color: 'white',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  calendarLegend: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 12,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  legendDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 6,
+  },
+  legendText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   modalTitle: {
     fontSize: 20,

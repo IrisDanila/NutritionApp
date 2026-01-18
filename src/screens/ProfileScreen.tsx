@@ -7,10 +7,13 @@ import {
   TouchableOpacity,
   TextInput,
   Modal,
+  Switch,
 } from 'react-native';
 import {storageService, UserProfile} from '../services/storageService';
+import {useTheme} from '../theme/ThemeContext';
 
 const ProfileScreen = () => {
+  const {colors, mode, setThemeMode} = useTheme();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [editedProfile, setEditedProfile] = useState<UserProfile | null>(null);
@@ -111,16 +114,22 @@ const ProfileScreen = () => {
     );
   }
 
+  const inputThemeStyle = {
+    color: colors.text,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  };
+
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={[styles.container, {backgroundColor: colors.background}]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, {backgroundColor: colors.primary}]}> 
         <View style={styles.avatarContainer}>
           <Text style={styles.avatarText}>
             {profile.name.charAt(0).toUpperCase()}
           </Text>
         </View>
-        <Text style={styles.name}>{profile.name}</Text>
+        <Text style={[styles.name, {color: 'white'}]}>{profile.name}</Text>
         <TouchableOpacity
           style={styles.editButton}
           onPress={() => setEditMode(true)}>
@@ -130,50 +139,50 @@ const ProfileScreen = () => {
 
       {/* Stats Cards */}
       <View style={styles.statsContainer}>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{getBMI()}</Text>
-          <Text style={styles.statLabel}>BMI</Text>
+        <View style={[styles.statCard, {backgroundColor: colors.card}]}>
+          <Text style={[styles.statValue, {color: colors.text}]}>{getBMI()}</Text>
+          <Text style={[styles.statLabel, {color: colors.mutedText}]}>BMI</Text>
           <Text style={[styles.statCategory, {color: getBMICategory().color}]}>
             {getBMICategory().text}
           </Text>
         </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{profile.weight}</Text>
-          <Text style={styles.statLabel}>Weight (kg)</Text>
+        <View style={[styles.statCard, {backgroundColor: colors.card}]}>
+          <Text style={[styles.statValue, {color: colors.text}]}>{profile.weight}</Text>
+          <Text style={[styles.statLabel, {color: colors.mutedText}]}>Weight (kg)</Text>
         </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{profile.height}</Text>
-          <Text style={styles.statLabel}>Height (cm)</Text>
+        <View style={[styles.statCard, {backgroundColor: colors.card}]}>
+          <Text style={[styles.statValue, {color: colors.text}]}>{profile.height}</Text>
+          <Text style={[styles.statLabel, {color: colors.mutedText}]}>Height (cm)</Text>
         </View>
       </View>
 
       {/* Goals */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>🎯 My Goals</Text>
+      <View style={[styles.card, {backgroundColor: colors.card}]}>
+        <Text style={[styles.cardTitle, {color: colors.text}]}>🎯 My Goals</Text>
         <View style={styles.goalItem}>
-          <Text style={styles.goalLabel}>Current Goal</Text>
-          <Text style={styles.goalValue}>{getGoalText()}</Text>
+          <Text style={[styles.goalLabel, {color: colors.mutedText}]}>Current Goal</Text>
+          <Text style={[styles.goalValue, {color: colors.text}]}>{getGoalText()}</Text>
         </View>
         <View style={styles.goalItem}>
-          <Text style={styles.goalLabel}>Daily Calories</Text>
-          <Text style={styles.goalValue}>{profile.targetCalories} cal</Text>
+          <Text style={[styles.goalLabel, {color: colors.mutedText}]}>Daily Calories</Text>
+          <Text style={[styles.goalValue, {color: colors.text}]}>{profile.targetCalories} cal</Text>
         </View>
         <View style={styles.goalItem}>
-          <Text style={styles.goalLabel}>Daily Water</Text>
-          <Text style={styles.goalValue}>{profile.targetWater} ml</Text>
+          <Text style={[styles.goalLabel, {color: colors.mutedText}]}>Daily Water</Text>
+          <Text style={[styles.goalValue, {color: colors.text}]}>{profile.targetWater} ml</Text>
         </View>
         <View style={styles.goalItem}>
-          <Text style={styles.goalLabel}>Daily Steps</Text>
-          <Text style={styles.goalValue}>{profile.targetSteps} steps</Text>
+          <Text style={[styles.goalLabel, {color: colors.mutedText}]}>Daily Steps</Text>
+          <Text style={[styles.goalValue, {color: colors.text}]}>{profile.targetSteps} steps</Text>
         </View>
       </View>
 
       {/* Weekly Progress */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>📊 Weekly Progress</Text>
+      <View style={[styles.card, {backgroundColor: colors.card}]}>
+        <Text style={[styles.cardTitle, {color: colors.text}]}>📊 Weekly Progress</Text>
         <View style={styles.progressItem}>
-          <Text style={styles.progressLabel}>Active Days</Text>
-          <View style={styles.progressBar}>
+          <Text style={[styles.progressLabel, {color: colors.mutedText}]}>Active Days</Text>
+          <View style={[styles.progressBar, {backgroundColor: colors.border}]}>
             <View
               style={[
                 styles.progressFill,
@@ -181,44 +190,64 @@ const ProfileScreen = () => {
               ]}
             />
           </View>
-          <Text style={styles.progressValue}>
+          <Text style={[styles.progressValue, {color: colors.text}]}>
             {weeklyStats.activeDays} / 7 days
           </Text>
         </View>
         <View style={styles.progressItem}>
-          <Text style={styles.progressLabel}>Average Calories</Text>
-          <Text style={styles.progressValue}>
+          <Text style={[styles.progressLabel, {color: colors.mutedText}]}>Average Calories</Text>
+          <Text style={[styles.progressValue, {color: colors.text}]}> 
             {weeklyStats.avgCalories.toFixed(0)} cal/day
           </Text>
         </View>
         <View style={styles.progressItem}>
-          <Text style={styles.progressLabel}>Total Water</Text>
-          <Text style={styles.progressValue}>
+          <Text style={[styles.progressLabel, {color: colors.mutedText}]}>Total Water</Text>
+          <Text style={[styles.progressValue, {color: colors.text}]}> 
             {(weeklyStats.totalWater / 1000).toFixed(1)} liters
           </Text>
         </View>
         <View style={styles.progressItem}>
-          <Text style={styles.progressLabel}>Total Steps</Text>
-          <Text style={styles.progressValue}>
+          <Text style={[styles.progressLabel, {color: colors.mutedText}]}>Total Steps</Text>
+          <Text style={[styles.progressValue, {color: colors.text}]}> 
             {weeklyStats.totalSteps.toLocaleString()} steps
           </Text>
         </View>
       </View>
 
       {/* Personal Info */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>👤 Personal Information</Text>
+      <View style={[styles.card, {backgroundColor: colors.card}]}>
+        <Text style={[styles.cardTitle, {color: colors.text}]}>👤 Personal Information</Text>
         <View style={styles.infoItem}>
-          <Text style={styles.infoLabel}>Age</Text>
-          <Text style={styles.infoValue}>{profile.age} years</Text>
+          <Text style={[styles.infoLabel, {color: colors.mutedText}]}>Age</Text>
+          <Text style={[styles.infoValue, {color: colors.text}]}>{profile.age} years</Text>
         </View>
         <View style={styles.infoItem}>
-          <Text style={styles.infoLabel}>Weight</Text>
-          <Text style={styles.infoValue}>{profile.weight} kg</Text>
+          <Text style={[styles.infoLabel, {color: colors.mutedText}]}>Weight</Text>
+          <Text style={[styles.infoValue, {color: colors.text}]}>{profile.weight} kg</Text>
         </View>
         <View style={styles.infoItem}>
-          <Text style={styles.infoLabel}>Height</Text>
-          <Text style={styles.infoValue}>{profile.height} cm</Text>
+          <Text style={[styles.infoLabel, {color: colors.mutedText}]}>Height</Text>
+          <Text style={[styles.infoValue, {color: colors.text}]}>{profile.height} cm</Text>
+        </View>
+        <View style={styles.infoItem}>
+          <Text style={[styles.infoLabel, {color: colors.mutedText}]}>Gender</Text>
+          <Text style={[styles.infoValue, {color: colors.text}]}>
+            {profile.gender === 'female' ? 'Female' : 'Male'}
+          </Text>
+        </View>
+      </View>
+
+      {/* Appearance */}
+      <View style={[styles.card, {backgroundColor: colors.card}]}>
+        <Text style={[styles.cardTitle, {color: colors.text}]}>🌙 Appearance</Text>
+        <View style={styles.infoItem}>
+          <Text style={[styles.infoLabel, {color: colors.mutedText}]}>Dark Mode</Text>
+          <Switch
+            value={mode === 'dark'}
+            onValueChange={value => setThemeMode(value ? 'dark' : 'light')}
+            trackColor={{false: colors.border, true: colors.primary}}
+            thumbColor={mode === 'dark' ? '#FFFFFF' : '#FFFFFF'}
+          />
         </View>
       </View>
 
@@ -227,27 +256,27 @@ const ProfileScreen = () => {
         visible={editMode}
         animationType="slide"
         onRequestClose={() => setEditMode(false)}>
-        <ScrollView style={styles.modalContainer}>
+        <ScrollView style={[styles.modalContainer, {backgroundColor: colors.background}]}> 
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Edit Profile</Text>
+            <Text style={[styles.modalTitle, {color: colors.text}]}>Edit Profile</Text>
             <TouchableOpacity onPress={() => setEditMode(false)}>
-              <Text style={styles.closeButton}>✕</Text>
+              <Text style={[styles.closeButton, {color: colors.text}]}>✕</Text>
             </TouchableOpacity>
           </View>
 
-          <View style={styles.modalContent}>
-            <Text style={styles.inputLabel}>Name</Text>
+          <View style={[styles.modalContent, {backgroundColor: colors.card}]}> 
+            <Text style={[styles.inputLabel, {color: colors.mutedText}]}>Name</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, inputThemeStyle]}
               value={editedProfile.name}
               onChangeText={text =>
                 setEditedProfile({...editedProfile, name: text})
               }
             />
 
-            <Text style={styles.inputLabel}>Age</Text>
+            <Text style={[styles.inputLabel, {color: colors.mutedText}]}>Age</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, inputThemeStyle]}
               value={editedProfile.age.toString()}
               onChangeText={text =>
                 setEditedProfile({...editedProfile, age: parseInt(text) || 0})
@@ -255,9 +284,9 @@ const ProfileScreen = () => {
               keyboardType="numeric"
             />
 
-            <Text style={styles.inputLabel}>Weight (kg)</Text>
+            <Text style={[styles.inputLabel, {color: colors.mutedText}]}>Weight (kg)</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, inputThemeStyle]}
               value={editedProfile.weight.toString()}
               onChangeText={text =>
                 setEditedProfile({
@@ -268,9 +297,9 @@ const ProfileScreen = () => {
               keyboardType="numeric"
             />
 
-            <Text style={styles.inputLabel}>Height (cm)</Text>
+            <Text style={[styles.inputLabel, {color: colors.mutedText}]}>Height (cm)</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, inputThemeStyle]}
               value={editedProfile.height.toString()}
               onChangeText={text =>
                 setEditedProfile({
@@ -281,7 +310,7 @@ const ProfileScreen = () => {
               keyboardType="numeric"
             />
 
-            <Text style={styles.inputLabel}>Goal</Text>
+            <Text style={[styles.inputLabel, {color: colors.mutedText}]}>Goal</Text>
             <View style={styles.goalOptions}>
               {[
                 {value: 'lose', label: 'Lose Weight'},
@@ -313,9 +342,9 @@ const ProfileScreen = () => {
               ))}
             </View>
 
-            <Text style={styles.inputLabel}>Target Calories (cal/day)</Text>
+            <Text style={[styles.inputLabel, {color: colors.mutedText}]}>Target Calories (cal/day)</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, inputThemeStyle]}
               value={editedProfile.targetCalories.toString()}
               onChangeText={text =>
                 setEditedProfile({
@@ -326,9 +355,9 @@ const ProfileScreen = () => {
               keyboardType="numeric"
             />
 
-            <Text style={styles.inputLabel}>Target Water (ml/day)</Text>
+            <Text style={[styles.inputLabel, {color: colors.mutedText}]}>Target Water (ml/day)</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, inputThemeStyle]}
               value={editedProfile.targetWater.toString()}
               onChangeText={text =>
                 setEditedProfile({
@@ -339,9 +368,9 @@ const ProfileScreen = () => {
               keyboardType="numeric"
             />
 
-            <Text style={styles.inputLabel}>Target Steps (steps/day)</Text>
+            <Text style={[styles.inputLabel, {color: colors.mutedText}]}>Target Steps (steps/day)</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, inputThemeStyle]}
               value={editedProfile.targetSteps.toString()}
               onChangeText={text =>
                 setEditedProfile({
@@ -351,6 +380,37 @@ const ProfileScreen = () => {
               }
               keyboardType="numeric"
             />
+
+            <Text style={[styles.inputLabel, {color: colors.mutedText}]}>Gender</Text>
+            <View style={styles.goalOptions}>
+              {[
+                {value: 'female', label: 'Female'},
+                {value: 'male', label: 'Male'},
+              ].map(option => (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    styles.goalOption,
+                    editedProfile.gender === option.value &&
+                      styles.goalOptionActive,
+                  ]}
+                  onPress={() =>
+                    setEditedProfile({
+                      ...editedProfile,
+                      gender: option.value as 'male' | 'female',
+                    })
+                  }>
+                  <Text
+                    style={[
+                      styles.goalOptionText,
+                      editedProfile.gender === option.value &&
+                        styles.goalOptionTextActive,
+                    ]}>
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
             <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
               <Text style={styles.saveButtonText}>Save Changes</Text>
