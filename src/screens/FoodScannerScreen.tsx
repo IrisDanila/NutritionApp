@@ -132,11 +132,24 @@ const FoodScannerScreen = ({route}: any) => {
         // For Android, copy the model to a readable location first
         modelPath = `${RNFS.DocumentDirectoryPath}/mobilenet_v2_food101.onnx`;
         const bundlePath = 'models/mobilenet_v2_food101.onnx';
-        
-        // Check if model already exists in documents
+
+        let shouldCopy = true;
         const exists = await RNFS.exists(modelPath);
-        if (!exists) {
-          // Copy from assets to documents directory
+        if (exists) {
+          try {
+            const stat = await RNFS.stat(modelPath);
+            if (stat.size > 1_000_000) {
+              shouldCopy = false;
+            } else {
+              await RNFS.unlink(modelPath);
+            }
+          } catch {
+            // If stat fails, re-copy the model to be safe.
+            shouldCopy = true;
+          }
+        }
+
+        if (shouldCopy) {
           await RNFS.copyFileAssets(bundlePath, modelPath);
           console.log('Model copied to:', modelPath);
         }
