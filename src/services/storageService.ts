@@ -78,6 +78,7 @@ const KEYS = {
   FOOD_HISTORY: 'food_history',
   MEDITATION_LOGS: 'meditation_logs',
   THEME_PREFERENCE: 'theme_preference',
+  ONBOARDING_COMPLETE: 'onboarding_complete',
 };
 
 export const storageService = {
@@ -110,6 +111,21 @@ export const storageService = {
       steps: 0,
       notes: '',
     };
+  },
+
+  getEarliestDailyDataDate: async (): Promise<string | null> => {
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+      const dates = keys
+        .filter(key => key.startsWith(KEYS.DAILY_DATA))
+        .map(key => key.replace(KEYS.DAILY_DATA, ''))
+        .filter(date => /^\d{4}-\d{2}-\d{2}$/.test(date))
+        .sort();
+      return dates.length > 0 ? dates[0] : null;
+    } catch (error) {
+      console.error('Error getting earliest daily data date:', error);
+      return null;
+    }
   },
 
   // User Profile
@@ -147,6 +163,24 @@ export const storageService = {
       console.error('Error getting user profile:', error);
     }
     return defaultProfile;
+  },
+
+  getOnboardingComplete: async (): Promise<boolean> => {
+    try {
+      const value = await AsyncStorage.getItem(KEYS.ONBOARDING_COMPLETE);
+      return value === 'true';
+    } catch (error) {
+      console.error('Error getting onboarding status:', error);
+      return false;
+    }
+  },
+
+  setOnboardingComplete: async () => {
+    try {
+      await AsyncStorage.setItem(KEYS.ONBOARDING_COMPLETE, 'true');
+    } catch (error) {
+      console.error('Error saving onboarding status:', error);
+    }
   },
 
   // Streak

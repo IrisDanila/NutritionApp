@@ -48,12 +48,14 @@ const HomeScreen = () => {
   const [notes, setNotes] = useState('');
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [calendarDays, setCalendarDays] = useState<
-    {date: string; day: number; metGoals: boolean}[]
+    {date: string; day: number; metGoals: boolean | null}[]
   >([]);
   const [calendarMonthLabel, setCalendarMonthLabel] = useState('');
   const stepsRef = useRef(0);
   const lastStepTimeRef = useRef(0);
   const lastPersistRef = useRef(0);
+  const gravityRef = useRef({x: 0, y: 0, z: 0});
+  const wasAboveThresholdRef = useRef(false);
 
   const loadData = async () => {
     const today = new Date().toISOString().split('T')[0];
@@ -142,12 +144,19 @@ const HomeScreen = () => {
     });
     setCalendarMonthLabel(label);
 
-    const days: {date: string; day: number; metGoals: boolean}[] = [];
+    const todayStr = new Date().toISOString().split('T')[0];
+    const appStartDate = await storageService.getEarliestDailyDataDate();
+    const effectiveStartDate = appStartDate ?? todayStr;
+
+    const days: {date: string; day: number; metGoals: boolean | null}[] = [];
     for (let day = 1; day <= lastDay.getDate(); day++) {
       const date = new Date(year, month, day);
       const dateStr = date.toISOString().split('T')[0];
-      const daily = await storageService.getDailyData(dateStr);
-      const metGoals = didMeetGoals(daily, profile);
+      let metGoals: boolean | null = null;
+      if (dateStr <= todayStr && dateStr >= effectiveStartDate) {
+        const daily = await storageService.getDailyData(dateStr);
+        metGoals = didMeetGoals(daily, profile);
+      }
       days.push({date: dateStr, day, metGoals});
     }
     setCalendarDays(days);
@@ -215,26 +224,37 @@ const HomeScreen = () => {
       setUpdateIntervalForType(SensorTypes.accelerometer, 200);
 
       subscription = accelerometer
-        .pipe(
-          map(({x, y, z, timestamp}) => ({
-            magnitude: Math.sqrt(x * x + y * y + z * z),
-            timestamp: timestamp ?? Date.now(),
-          })),
-        )
-        .subscribe(({magnitude, timestamp}: any) => {
-          const delta = Math.abs(magnitude - 1); // remove gravity
-          const now = timestamp as number;
-          const minStepInterval = 350;
-          const stepThreshold = 1.0;
+        .pipe(map(({x, y, z, timestamp}) => ({x, y, z, timestamp})))
+        .subscribe(({x, y, z, timestamp}: any) => {
+          const now = (timestamp as number) ?? Date.now();
+          const alpha = 0.8; // low-pass filter for gravity
+          const gravity = gravityRef.current;
+          gravity.x = alpha * gravity.x + (1 - alpha) * x;
+          gravity.y = alpha * gravity.y + (1 - alpha) * y;
+          gravity.z = alpha * gravity.z + (1 - alpha) * z;
+
+          const linearX = x - gravity.x;
+          const linearY = y - gravity.y;
+          const linearZ = z - gravity.z;
+          const linearMag = Math.sqrt(
+            linearX * linearX + linearY * linearY + linearZ * linearZ,
+          );
+
+          const minStepInterval = 500;
+          const stepThreshold = 1.2;
+          const aboveThreshold = linearMag > stepThreshold;
 
           if (
-            delta > stepThreshold &&
+            aboveThreshold &&
+            !wasAboveThresholdRef.current &&
             now - lastStepTimeRef.current > minStepInterval
           ) {
             lastStepTimeRef.current = now;
             stepsRef.current += 1;
             setSteps(stepsRef.current);
           }
+
+          wasAboveThresholdRef.current = aboveThreshold;
         });
     };
 
@@ -261,7 +281,7 @@ const HomeScreen = () => {
     ? new Date(`${calendarDays[0].date}T00:00:00`).getDay()
     : 0;
   const calendarCells: Array<
-    {date: string; day: number; metGoals: boolean} | null
+    {date: string; day: number; metGoals: boolean | null} | null
   > = [...Array(calendarFirstDay).fill(null), ...calendarDays];
 
   return (
@@ -607,14 +627,30 @@ const HomeScreen = () => {
                     key={item.date}
                     style={[
                       styles.calendarDay,
-                      item.metGoals
-                        ? styles.calendarDaySuccess
-                        : styles.calendarDayFail,
+                      item.metGoals === null
+                        ? [
+                            styles.calendarDayNeutral,
+                            {
+                              backgroundColor: colors.surface,
+                              borderColor: colors.border,
+                            },
+                          ]
+                        : item.metGoals
+                          ? styles.calendarDaySuccess
+                          : styles.calendarDayFail,
                     ]}>
-                    <Text style={styles.calendarDayNumber}>{item.day}</Text>
-                    <Text style={styles.calendarDayStatus}>
-                      {item.metGoals ? '✓' : '✕'}
+                    <Text
+                      style={[
+                        styles.calendarDayNumber,
+                        {color: item.metGoals === null ? colors.text : 'white'},
+                      ]}>
+                      {item.day}
                     </Text>
+                    {item.metGoals !== null && (
+                      <Text style={styles.calendarDayStatus}>
+                        {item.metGoals ? '✓' : '✕'}
+                      </Text>
+                    )}
                   </View>
                 ) : (
                   <View key={`empty-${index}`} style={styles.calendarDayEmpty} />
@@ -946,6 +982,9 @@ const styles = StyleSheet.create({
   },
   calendarDayFail: {
     backgroundColor: '#FF6B6B',
+  },
+  calendarDayNeutral: {
+    borderWidth: 1,
   },
   calendarDayNumber: {
     color: 'white',

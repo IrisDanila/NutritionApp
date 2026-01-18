@@ -14,6 +14,7 @@ import {
   Platform,
   PermissionsAndroid,
   Vibration,
+  Linking,
 } from 'react-native';
 import {launchCamera, launchImageLibrary} from 'react-native-image-picker';
 import {InferenceSession, Tensor} from 'onnxruntime-react-native';
@@ -87,10 +88,12 @@ const FoodScannerScreen = ({route}: any) => {
   const ensureAndroidPhotoPermission = async (): Promise<boolean> => {
     if (Platform.OS !== 'android') return true;
 
-    // Android 13+ uses READ_MEDIA_IMAGES; older versions use READ_EXTERNAL_STORAGE.
-    const permission =
-      (PermissionsAndroid.PERMISSIONS as any).READ_MEDIA_IMAGES ??
-      PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE;
+    const isAndroid13Plus = (Platform.Version ?? 0) >= 33;
+    const permission = isAndroid13Plus
+      ? (PermissionsAndroid.PERMISSIONS as any).READ_MEDIA_IMAGES
+      : PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE;
+
+    if (!permission) return true;
 
     const alreadyGranted =
       (await PermissionsAndroid.check(permission)) === true;
@@ -103,7 +106,22 @@ const FoodScannerScreen = ({route}: any) => {
       buttonNegative: 'Cancel',
     });
 
-    return result === PermissionsAndroid.RESULTS.GRANTED;
+    if (result === PermissionsAndroid.RESULTS.GRANTED) {
+      return true;
+    }
+
+    if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
+      Alert.alert(
+        'Permission required',
+        'Photo permission was denied and cannot be requested again. Please enable it in Settings.',
+        [
+          {text: 'Cancel', style: 'cancel'},
+          {text: 'Open Settings', onPress: () => Linking.openSettings()},
+        ],
+      );
+    }
+
+    return false;
   };
 
   const loadModel = async () => {
