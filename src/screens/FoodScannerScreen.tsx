@@ -48,7 +48,8 @@ const POPULAR_FOODS: PopularFood[] = [
   {name: 'Sweet Potato', emoji: '🍠', query: '1 medium'},
 ];
 
-const FoodScannerScreen = () => {
+const FoodScannerScreen = ({route}: any) => {
+  const preselectedMeal = route?.params?.preselectedMeal as 'breakfast' | 'lunch' | 'dinner' | undefined;
   const [selectedFood, setSelectedFood] = useState<NutritionItem | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [history, setHistory] = useState<FoodHistory[]>([]);
@@ -220,7 +221,13 @@ const FoodScannerScreen = () => {
       // Ignore vibration errors to avoid any UX disruption.
     }
     setPendingFood(item);
-    setShowMealTypeModal(true);
+    
+    // If a meal was preselected from HomeScreen, auto-add to that meal
+    if (preselectedMeal) {
+      confirmAddMeal(preselectedMeal);
+    } else {
+      setShowMealTypeModal(true);
+    }
   };
 
   const confirmAddMeal = async (

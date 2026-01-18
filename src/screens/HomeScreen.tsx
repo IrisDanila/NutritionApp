@@ -9,7 +9,7 @@ import {
   Modal,
   RefreshControl,
 } from 'react-native';
-import {useFocusEffect} from '@react-navigation/native';
+import {useFocusEffect, useNavigation} from '@react-navigation/native';
 import {storageService, Activity, DailyData} from '../services/storageService';
 
 interface NutritionSummary {
@@ -20,6 +20,7 @@ interface NutritionSummary {
 }
 
 const HomeScreen = () => {
+  const navigation = useNavigation<any>();
   const [streak, setStreak] = useState(0);
   const [dailyData, setDailyData] = useState<DailyData | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -168,8 +169,15 @@ const HomeScreen = () => {
 
         <View style={styles.mealItem}>
           <View style={styles.mealHeader}>
-            <Text style={styles.mealEmoji}>🌅</Text>
-            <Text style={styles.mealName}>Breakfast</Text>
+            <View style={styles.mealTitleRow}>
+              <Text style={styles.mealEmoji}>🌅</Text>
+              <Text style={styles.mealName}>Breakfast</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.mealAddButton}
+              onPress={() => navigation.navigate('Scanner', {preselectedMeal: 'breakfast'})}>
+              <Text style={styles.mealAddButtonText}>+</Text>
+            </TouchableOpacity>
           </View>
           <View style={styles.nutritionRow}>
             <Text style={styles.nutritionText}>
@@ -189,8 +197,15 @@ const HomeScreen = () => {
 
         <View style={styles.mealItem}>
           <View style={styles.mealHeader}>
-            <Text style={styles.mealEmoji}>☀️</Text>
-            <Text style={styles.mealName}>Lunch</Text>
+            <View style={styles.mealTitleRow}>
+              <Text style={styles.mealEmoji}>☀️</Text>
+              <Text style={styles.mealName}>Lunch</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.mealAddButton}
+              onPress={() => navigation.navigate('Scanner', {preselectedMeal: 'lunch'})}>
+              <Text style={styles.mealAddButtonText}>+</Text>
+            </TouchableOpacity>
           </View>
           <View style={styles.nutritionRow}>
             <Text style={styles.nutritionText}>
@@ -204,8 +219,15 @@ const HomeScreen = () => {
 
         <View style={styles.mealItem}>
           <View style={styles.mealHeader}>
-            <Text style={styles.mealEmoji}>🌙</Text>
-            <Text style={styles.mealName}>Dinner</Text>
+            <View style={styles.mealTitleRow}>
+              <Text style={styles.mealEmoji}>🌙</Text>
+              <Text style={styles.mealName}>Dinner</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.mealAddButton}
+              onPress={() => navigation.navigate('Scanner', {preselectedMeal: 'dinner'})}>
+              <Text style={styles.mealAddButtonText}>+</Text>
+            </TouchableOpacity>
           </View>
           <View style={styles.nutritionRow}>
             <Text style={styles.nutritionText}>
@@ -490,7 +512,25 @@ const styles = StyleSheet.create({
   mealHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 8,
+  },
+  mealTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  mealAddButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#4CAF50',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  mealAddButtonText: {
+    color: 'white',
+    fontSize: 20,
+    fontWeight: 'bold',
   },
   mealEmoji: {
     fontSize: 24,
