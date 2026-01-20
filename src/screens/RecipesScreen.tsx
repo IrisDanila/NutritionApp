@@ -221,13 +221,6 @@ const RecipesScreen = () => {
                   {selectedMeal.strInstructions}
                 </Text>
 
-                {selectedMeal.strYoutube && (
-                  <TouchableOpacity style={styles.youtubeButton}>
-                    <Text style={styles.youtubeButtonText}>
-                      📺 Watch Video
-                    </Text>
-                  </TouchableOpacity>
-                )}
               </View>
             </ScrollView>
           )}
