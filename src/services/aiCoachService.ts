@@ -35,8 +35,8 @@ const MODEL_FILES = {
 
 const DEFAULT_EOS_TOKEN_ID = 2;
 const MAX_CONTEXT_TOKENS = 256;
-const MAX_NEW_TOKENS = 120;
-const MAX_GENERATION_MS = 45000;
+const MAX_NEW_TOKENS = 320;
+const MAX_GENERATION_MS = 150000;
 const MIN_GENERATED_TOKENS = 1;
 const MIN_RESPONSE_WORDS = 1;
 
@@ -450,7 +450,9 @@ class AICoachService {
           break;
         }
 
-        const fullSequence = [...inputIds, ...generated].slice(-MAX_CONTEXT_TOKENS);
+        // Keep sequence length monotonic with cache growth; sliding truncation can desync
+        // attention/cached lengths and trigger broadcast errors (e.g. 256 vs 257).
+        const fullSequence = [...inputIds, ...generated];
         const feeds = this.buildFeedsForStep({
           fullSequence,
           step,
