@@ -15,6 +15,8 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import Navigation from './src/Navigation';
@@ -24,6 +26,7 @@ import {storageService, UserProfile} from './src/services/storageService';
 const AppContent = () => {
   const {isDark, colors} = useTheme();
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [onboardingProfile, setOnboardingProfile] = useState({
     name: '',
     age: '25',
@@ -58,28 +61,39 @@ const AppContent = () => {
   }, []);
 
   const handleCompleteOnboarding = async () => {
-    const age = parseInt(onboardingProfile.age, 10) || 25;
-    const weight = parseFloat(onboardingProfile.weight) || 70;
-    const height = parseInt(onboardingProfile.height, 10) || 170;
-    const targetCalories = parseInt(onboardingProfile.targetCalories, 10) || 2000;
-    const targetWater = parseInt(onboardingProfile.targetWater, 10) || 2000;
-    const targetSteps = parseInt(onboardingProfile.targetSteps, 10) || 10000;
+    if (isSaving) return; // Prevent multiple clicks
+    
+    try {
+      setIsSaving(true);
+      
+      const age = parseInt(onboardingProfile.age, 10) || 25;
+      const weight = parseFloat(onboardingProfile.weight) || 70;
+      const height = parseInt(onboardingProfile.height, 10) || 170;
+      const targetCalories = parseInt(onboardingProfile.targetCalories, 10) || 2000;
+      const targetWater = parseInt(onboardingProfile.targetWater, 10) || 2000;
+      const targetSteps = parseInt(onboardingProfile.targetSteps, 10) || 10000;
 
-    const profile: UserProfile = {
-      name: onboardingProfile.name.trim() || 'User',
-      age,
-      weight,
-      height,
-      goal: onboardingProfile.goal,
-      gender: onboardingProfile.gender,
-      targetCalories,
-      targetWater,
-      targetSteps,
-    };
+      const profile: UserProfile = {
+        name: onboardingProfile.name.trim() || 'User',
+        age,
+        weight,
+        height,
+        goal: onboardingProfile.goal,
+        gender: onboardingProfile.gender,
+        targetCalories,
+        targetWater,
+        targetSteps,
+      };
 
-    await storageService.saveUserProfile(profile);
-    await storageService.setOnboardingComplete();
-    setShowOnboarding(false);
+      await storageService.saveUserProfile(profile);
+      await storageService.setOnboardingComplete();
+      setShowOnboarding(false);
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      Alert.alert('Error', 'Failed to save profile. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -219,9 +233,14 @@ const AppContent = () => {
               />
             </ScrollView>
             <TouchableOpacity
-              style={[styles.primaryButton, {backgroundColor: colors.primary}]}
-              onPress={handleCompleteOnboarding}>
-              <Text style={styles.primaryButtonText}>Save & Continue</Text>
+              style={[styles.primaryButton, {backgroundColor: colors.primary, opacity: isSaving ? 0.6 : 1}]}
+              onPress={handleCompleteOnboarding}
+              disabled={isSaving}>
+              {isSaving ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text style={styles.primaryButtonText}>Save & Continue</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>

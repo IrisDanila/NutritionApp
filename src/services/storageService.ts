@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {gamificationService, XP_REWARDS} from './gamificationService';
 
 export interface NutritionItem {
   name: string;
@@ -290,6 +291,10 @@ export const storageService = {
       };
       logs.unshift(newEntry);
       await AsyncStorage.setItem(KEYS.MEDITATION_LOGS, JSON.stringify(logs));
+      
+      // Gamification: Add XP for meditation session
+      await gamificationService.addXP(XP_REWARDS.MEDITATION_SESSION, 'Completed meditation session');
+      await gamificationService.updateQuestProgress('meditation');
     } catch (error) {
       console.error('Error adding meditation log:', error);
     }
@@ -324,6 +329,14 @@ export const storageService = {
       dailyData.meals.push(newMeal);
       await storageService.saveDailyData(today, dailyData);
       await storageService.updateStreak();
+      
+      // Gamification: Add XP for logging meal
+      await gamificationService.addXP(XP_REWARDS.LOG_MEAL, 'Logged a meal');
+      await gamificationService.updateStreak();
+      
+      // Check quest progress
+      const userProfile = await storageService.getUserProfile();
+      await gamificationService.checkDailyQuestProgress(dailyData, userProfile);
     } catch (error) {
       console.error('Error adding meal:', error);
     }
@@ -351,8 +364,16 @@ export const storageService = {
     try {
       const today = new Date().toISOString().split('T')[0];
       const dailyData = await storageService.getDailyData(today);
+      const oldWaterIntake = dailyData.waterIntake;
       dailyData.waterIntake += amount;
       await storageService.saveDailyData(today, dailyData);
+      
+      // Gamification: Check if water goal was just completed
+      const userProfile = await storageService.getUserProfile();
+      if (oldWaterIntake < userProfile.targetWater && dailyData.waterIntake >= userProfile.targetWater) {
+        await gamificationService.addXP(XP_REWARDS.COMPLETE_WATER_GOAL, 'Completed water goal');
+        await gamificationService.updateQuestProgress('hydration');
+      }
     } catch (error) {
       console.error('Error updating water intake:', error);
     }
@@ -363,8 +384,16 @@ export const storageService = {
     try {
       const today = new Date().toISOString().split('T')[0];
       const dailyData = await storageService.getDailyData(today);
+      const oldSteps = dailyData.steps;
       dailyData.steps = steps;
       await storageService.saveDailyData(today, dailyData);
+      
+      // Gamification: Check if step goal was just completed
+      const userProfile = await storageService.getUserProfile();
+      if (oldSteps < userProfile.targetSteps && steps >= userProfile.targetSteps) {
+        await gamificationService.addXP(XP_REWARDS.REACH_STEP_GOAL, 'Reached step goal');
+        await gamificationService.updateQuestProgress('step_goal');
+      }
     } catch (error) {
       console.error('Error updating steps:', error);
     }

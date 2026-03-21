@@ -14,6 +14,7 @@ import LottieView from 'lottie-react-native';
 import Sound from 'react-native-sound';
 import Geolocation from 'react-native-geolocation-service';
 import {storageService, MeditationLog, UserProfile} from '../services/storageService';
+import {gamificationService, XP_REWARDS} from '../services/gamificationService';
 import {useFocusEffect} from '@react-navigation/native';
 import {useTheme} from '../theme/ThemeContext';
 
@@ -195,7 +196,11 @@ const MeditationScreen = () => {
     stopAudio();
     if (completed) {
       await saveLog();
-      Alert.alert('Session complete', 'Great job! Your meditation was logged.');
+      Alert.alert(
+        'Session complete! 🎉',
+        `Great job! Your meditation was logged.\n\n+${XP_REWARDS.MEDITATION_SESSION} XP earned!`,
+        [{text: 'Awesome!'}],
+      );
     }
   };
 

@@ -6,6 +6,8 @@ import RecipesScreen from './screens/RecipesScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import FoodScannerScreen from './screens/FoodScannerScreen';
 import MeditationScreen from './screens/MeditationScreen';
+import GamificationScreen from './screens/GamificationScreen';
+import AICoachScreen from './screens/AICoachScreen';
 import {useTheme} from './theme/ThemeContext';
 
 const Tab = createBottomTabNavigator();
@@ -65,6 +67,24 @@ const Navigation = () => {
           options={{
             tabBarIcon: ({focused}) => (
               <TabIcon emoji="🧘" focused={focused} />
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="Progress"
+          component={GamificationScreen}
+          options={{
+            tabBarIcon: ({focused}) => (
+              <TabIcon emoji="🏆" focused={focused} />
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="Coach"
+          component={AICoachScreen}
+          options={{
+            tabBarIcon: ({focused}) => (
+              <TabIcon emoji="🧠" focused={focused} />
             ),
           }}
         />

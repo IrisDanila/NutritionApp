@@ -12,7 +12,10 @@ const config = {
       stream: require.resolve('readable-stream'),
       util: require.resolve('util'),
       events: require.resolve('events'),
+      buffer: require.resolve('buffer'),
+      process: require.resolve('process/browser'),
     },
+    assetExts: ['bin', 'txt', 'jpg', 'png', 'mp3', 'onnx', 'json'],
   },
 };
 

@@ -258,6 +258,7 @@ Each meal displays:
 - **Charts & Graphs**: Visual progress tracking
 - **Barcode Scanner**: Scan product barcodes for nutrition info
 - **Meal Planning**: Plan meals for the week
+
 - **Social Features**: Share progress with friends
 - **Offline Mode**: Full offline functionality
 - **Export Data**: Export nutrition data to CSV/PDF

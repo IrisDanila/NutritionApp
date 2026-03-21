@@ -78,6 +78,10 @@ android {
     compileSdk rootProject.ext.compileSdkVersion
 
     namespace "com.nutritionapp"
+    androidResources {
+        noCompress += ['onnx']
+    }
+
     defaultConfig {
         applicationId "com.nutritionapp"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -107,16 +111,25 @@ android {
     }
 }
 
-// Ensure the ONNX model is available in Android app assets at build time.
-// FoodScannerScreen loads it via RNFS.copyFileAssets('models/mobilenet_v2_food101.onnx', ...)
-tasks.register('copyFood101OnnxModel', Copy) {
+// Ensure ML models are available in Android app assets at build time.
+// These files are copied from the root assets/models folder into android/app/src/main/assets/models.
+tasks.register('copyBundledModels', Copy) {
     from(file("${rootProject.projectDir}/../assets/models"))
     include('mobilenet_v2_food101.onnx')
+    include('model_q4f16.onnx')
+    include('vocab.json')
+    include('merges.txt')
+    include('tokenizer_config.json')
+    include('special_tokens_map.json')
+    include('generation_config.json')
+    include('config.json')
+    include('quantize_config.json')
+    include('tokenizer.json')
     into(file("${projectDir}/src/main/assets/models"))
 }
 
 // Run before building so the asset is always present.
-preBuild.dependsOn(tasks.named('copyFood101OnnxModel'))
+preBuild.dependsOn(tasks.named('copyBundledModels'))
 
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin

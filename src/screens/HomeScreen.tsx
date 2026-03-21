@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import {useFocusEffect, useNavigation} from '@react-navigation/native';
 import {storageService, Activity, DailyData, UserProfile} from '../services/storageService';
+import {gamificationService, GamificationData} from '../services/gamificationService';
 import {useTheme} from '../theme/ThemeContext';
 import {
   accelerometer,
@@ -51,6 +52,7 @@ const HomeScreen = () => {
     {date: string; day: number; metGoals: boolean | null}[]
   >([]);
   const [calendarMonthLabel, setCalendarMonthLabel] = useState('');
+  const [gamData, setGamData] = useState<GamificationData | null>(null);
   const stepsRef = useRef(0);
   const lastStepTimeRef = useRef(0);
   const lastPersistRef = useRef(0);
@@ -62,6 +64,7 @@ const HomeScreen = () => {
     const data = await storageService.getDailyData(today);
     const currentStreak = await storageService.getStreak();
     const profile = await storageService.getUserProfile();
+    const gamificationData = await gamificationService.getGamificationData();
     setDailyData(data);
     setStreak(currentStreak);
     setSteps(data.steps);
@@ -69,6 +72,7 @@ const HomeScreen = () => {
     setTargetSteps(profile.targetSteps || 10000);
     setProfile(profile);
     setNotes(data.notes);
+    setGamData(gamificationData);
   };
 
   useFocusEffect(
@@ -238,7 +242,7 @@ const HomeScreen = () => {
           const linearZ = z - gravity.z;
           const linearMag = Math.sqrt(
             linearX * linearX + linearY * linearY + linearZ * linearZ,
-          );
+          ); 
 
           const minStepInterval = 500;
           const stepThreshold = 1.2;
@@ -308,6 +312,46 @@ const HomeScreen = () => {
           <Text style={styles.streakText}>{streak} Day Streak</Text>
         </View>
       </View>
+
+      {/* Gamification Mini Card */}
+      {gamData && (
+        <TouchableOpacity
+          style={[styles.gamificationCard, {backgroundColor: colors.card}]}
+          onPress={() => navigation.navigate('Progress')}>
+          <View style={styles.gamificationLeft}>
+            <View style={styles.levelBadgeMini}>
+              <Text style={styles.levelBadgeMiniText}>{gamData.level}</Text>
+            </View>
+            <View style={styles.gamificationInfo}>
+              <Text style={[styles.gamificationTitle, {color: colors.text}]}>
+                Level {gamData.level}
+              </Text>
+              <View style={[styles.xpBarMini, {backgroundColor: colors.surface}]}>
+                <View
+                  style={[
+                    styles.xpBarFillMini,
+                    {
+                      backgroundColor: colors.primary,
+                      width: `${Math.min(
+                        (gamificationService.getXPProgress(gamData.xp, gamData.level).percentage),
+                        100,
+                      )}%`,
+                    },
+                  ]}
+                />
+              </View>
+            </View>
+          </View>
+          <View style={styles.gamificationRight}>
+            <Text style={[styles.questCount, {color: colors.primary}]}>
+              {gamData.activeQuests.filter(q => !q.completed).length}
+            </Text>
+            <Text style={[styles.questLabel, {color: colors.mutedText}]}>
+              active quests
+            </Text>
+          </View>
+        </TouchableOpacity>
+      )}
 
       {/* Calories Summary */}
       <View style={[styles.card, {backgroundColor: colors.card}]}> 
@@ -1073,6 +1117,69 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#2196F3',
     fontWeight: '600',
+  },
+  gamificationCard: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  gamificationLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  levelBadgeMini: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#4CAF50',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  levelBadgeMiniText: {
+    color: 'white',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  gamificationInfo: {
+    flex: 1,
+  },
+  gamificationTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  xpBarMini: {
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  xpBarFillMini: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  gamificationRight: {
+    alignItems: 'center',
+    marginLeft: 12,
+  },
+  questCount: {
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  questLabel: {
+    fontSize: 10,
+    textAlign: 'center',
   },
 });
 
