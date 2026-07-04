@@ -1,467 +1,168 @@
-import React, {useState, useEffect} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {
   View,
-  Text,
-  StyleSheet,
+  FlatList,
   ScrollView,
-  TouchableOpacity,
-  TextInput,
   Image,
-  Modal,
+  Pressable,
   ActivityIndicator,
 } from 'react-native';
-import {mealDBService, Meal, MealCategory} from '../services/mealDBService';
+import {useNavigation} from '@react-navigation/native';
+import {NativeStackNavigationProp} from '@react-navigation/native-stack';
+import Screen from '../components/Screen';
+import Card from '../components/Card';
+import Txt from '../components/Txt';
+import Icon from '../components/Icon';
+import IconButton from '../components/IconButton';
+import Input from '../components/Input';
+import Chip from '../components/Chip';
+import EmptyState from '../components/EmptyState';
 import {useTheme} from '../theme/ThemeContext';
+import {radius, spacing} from '../theme/typography';
+import {RootStackParamList} from '../navigation/types';
+import {
+  MealSummary,
+  filterByCategory,
+  listCategories,
+  searchMeals,
+} from '../services/mealdb';
 
-const RecipesScreen = () => {
-  const {colors} = useTheme();
-  const [categories, setCategories] = useState<MealCategory[]>([]);
-  const [meals, setMeals] = useState<Meal[]>([]);
-  const [selectedMeal, setSelectedMeal] = useState<Meal | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+type Nav = NativeStackNavigationProp<RootStackParamList>;
+
+export const RecipesScreen: React.FC = () => {
+  const {theme} = useTheme();
+  const navigation = useNavigation<Nav>();
+
+  const [query, setQuery] = useState('');
+  const [categories, setCategories] = useState<string[]>([]);
+  const [activeCat, setActiveCat] = useState('Chicken');
+  const [meals, setMeals] = useState<MealSummary[]>([]);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'search' | 'categories'>('categories');
+  const [error, setError] = useState<string | null>(null);
+  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reqId = useRef(0);
 
   useEffect(() => {
-    loadCategories();
+    listCategories().then(setCategories).catch(() => {});
   }, []);
 
-  const loadCategories = async () => {
-    setLoading(true);
-    const data = await mealDBService.getMealCategories();
-    setCategories(data);
-    setLoading(false);
-  };
+  // Load by category when not searching.
+  useEffect(() => {
+    if (query.trim()) return;
+    load(() => filterByCategory(activeCat));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCat]);
 
-  const searchMeals = async () => {
-    if (!searchQuery.trim()) return;
-    setLoading(true);
-    const results = await mealDBService.searchMealByName(searchQuery);
-    setMeals(results);
-    setLoading(false);
-  };
-
-  const loadMealsByCategory = async (category: string) => {
-    setLoading(true);
-    const results = await mealDBService.filterByCategory(category);
-    setMeals(results);
-    setActiveTab('search');
-    setLoading(false);
-  };
-
-  const loadMealDetails = async (mealId: string) => {
-    setLoading(true);
-    const meal = await mealDBService.getMealById(mealId);
-    setSelectedMeal(meal);
-    setLoading(false);
-  };
-
-  const getIngredients = (meal: Meal) => {
-    const ingredients = [];
-    for (let i = 1; i <= 20; i++) {
-      const ingredient = meal[`strIngredient${i}`];
-      const measure = meal[`strMeasure${i}`];
-      if (ingredient && ingredient.trim()) {
-        ingredients.push({ingredient, measure});
-      }
+  // Debounced search.
+  useEffect(() => {
+    if (debounce.current) clearTimeout(debounce.current);
+    if (!query.trim()) {
+      load(() => filterByCategory(activeCat));
+      return;
     }
-    return ingredients;
+    debounce.current = setTimeout(() => load(() => searchMeals(query)), 450);
+    return () => {
+      if (debounce.current) clearTimeout(debounce.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
+
+  const load = async (fn: () => Promise<MealSummary[]>) => {
+    const id = ++reqId.current;
+    setLoading(true);
+    setError(null);
+    try {
+      const r = await fn();
+      if (id === reqId.current) setMeals(r);
+    } catch (e: any) {
+      if (id === reqId.current) setError(e?.message ?? 'Failed to load recipes.');
+    } finally {
+      if (id === reqId.current) setLoading(false);
+    }
   };
 
   return (
-    <View style={[styles.container, {backgroundColor: colors.background}]}> 
-      {/* Search Bar */}
-      <View style={[styles.searchContainer, {backgroundColor: colors.card}]}> 
-        <TextInput
-          style={[styles.searchInput, {color: colors.text}]}
-          placeholder="Search recipes..."
-          placeholderTextColor={colors.mutedText}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          onSubmitEditing={searchMeals}
+    <Screen padded={false}>
+      <View style={{paddingHorizontal: spacing.lg, paddingTop: spacing.sm}}>
+        <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md}}>
+          <IconButton name="arrow-left" onPress={() => navigation.goBack()} />
+          <Txt variant="h1" style={{marginLeft: spacing.sm}}>
+            Recipes
+          </Txt>
+        </View>
+        <Input
+          placeholder="Search recipes (e.g. pasta)"
+          value={query}
+          onChangeText={setQuery}
+          returnKeyType="search"
         />
-        <TouchableOpacity style={[styles.searchButton, {backgroundColor: colors.primary}]} onPress={searchMeals}>
-          <Text style={styles.searchButtonText}>🔍</Text>
-        </TouchableOpacity>
       </View>
 
-      {/* Tabs */}
-      <View style={styles.tabs}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'categories' && [styles.activeTab, {backgroundColor: colors.primary}]]}
-          onPress={() => setActiveTab('categories')}>
-          <Text
-            style={[
-              styles.tabText,
-              {color: colors.mutedText},
-              activeTab === 'categories' && styles.activeTabText,
-            ]}>
-            Categories
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'search' && [styles.activeTab, {backgroundColor: colors.primary}]]}
-          onPress={() => setActiveTab('search')}>
-          <Text
-            style={[
-              styles.tabText,
-              {color: colors.mutedText},
-              activeTab === 'search' && styles.activeTabText,
-            ]}>
-            Results
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4CAF50" />
-        </View>
-      ) : (
-        <ScrollView style={styles.content}>
-          {activeTab === 'categories' ? (
-            <View style={styles.categoriesGrid}>
-              {categories.map(category => (
-                <TouchableOpacity
-                  key={category.idCategory}
-                  style={[styles.categoryCard, {backgroundColor: colors.card}]}
-                  onPress={() => loadMealsByCategory(category.strCategory)}>
-                  <Image
-                    source={{uri: category.strCategoryThumb}}
-                    style={styles.categoryImage}
-                  />
-                  <Text style={[styles.categoryName, {color: colors.text}]}>
-                    {category.strCategory}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          ) : (
-            <View style={styles.mealsGrid}>
-              {meals.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <Text style={[styles.emptyStateText, {color: colors.mutedText}]}>
-                    Search for your favorite recipes!
-                  </Text>
-                </View>
-              ) : (
-                meals.map(meal => (
-                  <TouchableOpacity
-                    key={meal.idMeal}
-                    style={[styles.mealCard, {backgroundColor: colors.card}]}
-                    onPress={() => loadMealDetails(meal.idMeal)}>
-                    <Image
-                      source={{uri: meal.strMealThumb}}
-                      style={styles.mealImage}
-                    />
-                    <View style={styles.mealInfo}>
-                      <Text style={[styles.mealName, {color: colors.text}]} numberOfLines={2}>
-                        {meal.strMeal}
-                      </Text>
-                      {meal.strCategory && (
-                        <Text style={[styles.mealCategory, {color: colors.mutedText}]}>
-                          {meal.strCategory}
-                        </Text>
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                ))
-              )}
-            </View>
-          )}
+      {!query.trim() ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{marginTop: spacing.md, height: 52, flexGrow: 0}}
+          contentContainerStyle={{
+            paddingHorizontal: spacing.lg,
+            gap: spacing.sm,
+            alignItems: 'center',
+          }}>
+          {categories.map(item => (
+            <Chip
+              key={item}
+              label={item}
+              selected={item === activeCat}
+              onPress={() => setActiveCat(item)}
+            />
+          ))}
         </ScrollView>
-      )}
+      ) : null}
 
-      {/* Meal Details Modal */}
-      <Modal
-        visible={selectedMeal !== null}
-        animationType="slide"
-        onRequestClose={() => setSelectedMeal(null)}>
-        <View style={[styles.modalContainer, {backgroundColor: colors.background}]}> 
-          {selectedMeal && (
-            <ScrollView>
-              <View style={styles.modalHeader}>
-                <TouchableOpacity
-                  style={styles.closeButton}
-                  onPress={() => setSelectedMeal(null)}>
-                  <Text style={[styles.closeButtonText, {color: colors.text}]}>✕</Text>
-                </TouchableOpacity>
+      <FlatList
+        data={meals}
+        keyExtractor={m => m.id}
+        numColumns={2}
+        columnWrapperStyle={{gap: spacing.md, paddingHorizontal: spacing.lg}}
+        contentContainerStyle={{paddingTop: spacing.md, paddingBottom: spacing.xxl, gap: spacing.md}}
+        ListHeaderComponent={
+          loading ? (
+            <ActivityIndicator color={theme.primary} style={{marginVertical: spacing.lg}} />
+          ) : error ? (
+            <View style={{paddingHorizontal: spacing.lg}}>
+              <Card flat style={{borderColor: theme.danger}}>
+                <Txt tone="danger">{error}</Txt>
+              </Card>
+            </View>
+          ) : null
+        }
+        ListEmptyComponent={
+          !loading ? (
+            <EmptyState icon="silverware-variant" title="No recipes" subtitle="Try another search or category." />
+          ) : null
+        }
+        renderItem={({item}) => (
+          <Pressable
+            style={{flex: 1}}
+            onPress={() => navigation.navigate('RecipeDetail', {id: item.id, name: item.name})}>
+            <Card padded={false} style={{overflow: 'hidden', flex: 1}}>
+              <Image source={{uri: item.thumb}} style={{width: '100%', height: 120}} resizeMode="cover" />
+              <View style={{padding: spacing.md}}>
+                <Txt variant="label" numberOfLines={2}>
+                  {item.name}
+                </Txt>
+                {item.category ? (
+                  <Txt variant="caption" tone="faint" style={{marginTop: 2}}>
+                    {item.category}
+                  </Txt>
+                ) : null}
               </View>
-              <Image
-                source={{uri: selectedMeal.strMealThumb}}
-                style={styles.modalImage}
-              />
-              <View style={[styles.modalContent, {backgroundColor: colors.card}]}> 
-                <Text style={[styles.modalTitle, {color: colors.text}]}>{selectedMeal.strMeal}</Text>
-                <View style={styles.modalTags}>
-                  <View style={styles.tag}>
-                    <Text style={styles.tagText}>
-                      {selectedMeal.strCategory}
-                    </Text>
-                  </View>
-                  <View style={styles.tag}>
-                    <Text style={styles.tagText}>{selectedMeal.strArea}</Text>
-                  </View>
-                </View>
-
-                <Text style={styles.sectionTitle}>Ingredients</Text>
-                <View style={styles.ingredientsList}>
-                  {getIngredients(selectedMeal).map((item, index) => (
-                    <View key={index} style={styles.ingredientItem}>
-                      <Text style={styles.ingredientBullet}>•</Text>
-                      <Text style={styles.ingredientText}>
-                        {item.measure} {item.ingredient}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-
-                <Text style={styles.sectionTitle}>Instructions</Text>
-                <Text style={styles.instructions}>
-                  {selectedMeal.strInstructions}
-                </Text>
-
-              </View>
-            </ScrollView>
-          )}
-        </View>
-      </Modal>
-    </View>
+            </Card>
+          </Pressable>
+        )}
+      />
+    </Screen>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F5F7FA',
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    padding: 15,
-    backgroundColor: 'white',
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  searchInput: {
-    flex: 1,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 25,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    fontSize: 16,
-  },
-  searchButton: {
-    marginLeft: 10,
-    backgroundColor: '#4CAF50',
-    borderRadius: 25,
-    width: 50,
-    height: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  searchButtonText: {
-    fontSize: 20,
-  },
-  tabs: {
-    flexDirection: 'row',
-    backgroundColor: 'white',
-    paddingHorizontal: 15,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 15,
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  activeTab: {
-    borderBottomColor: '#4CAF50',
-  },
-  tabText: {
-    fontSize: 16,
-    color: '#666',
-  },
-  activeTabText: {
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-  },
-  content: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  categoriesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    padding: 10,
-  },
-  categoryCard: {
-    width: '47%',
-    margin: '1.5%',
-    backgroundColor: 'white',
-    borderRadius: 15,
-    padding: 15,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  categoryImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    marginBottom: 10,
-  },
-  categoryName: {
-    fontSize: 14,
-    fontWeight: '600',
-    textAlign: 'center',
-    color: '#333',
-  },
-  mealsGrid: {
-    padding: 10,
-  },
-  mealCard: {
-    backgroundColor: 'white',
-    borderRadius: 15,
-    marginBottom: 15,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    overflow: 'hidden',
-  },
-  mealImage: {
-    width: '100%',
-    height: 200,
-  },
-  mealInfo: {
-    padding: 15,
-  },
-  mealName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 5,
-  },
-  mealCategory: {
-    fontSize: 14,
-    color: '#4CAF50',
-  },
-  emptyState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 40,
-  },
-  emptyStateText: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: 'white',
-  },
-  modalHeader: {
-    position: 'absolute',
-    top: 40,
-    right: 15,
-    zIndex: 1,
-  },
-  closeButton: {
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  closeButtonText: {
-    color: 'white',
-    fontSize: 24,
-  },
-  modalImage: {
-    width: '100%',
-    height: 300,
-  },
-  modalContent: {
-    padding: 20,
-  },
-  modalTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 15,
-  },
-  modalTags: {
-    flexDirection: 'row',
-    marginBottom: 20,
-  },
-  tag: {
-    backgroundColor: '#E8F5E9',
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 10,
-  },
-  tagText: {
-    color: '#4CAF50',
-    fontWeight: '600',
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-    marginTop: 20,
-    marginBottom: 15,
-  },
-  ingredientsList: {
-    marginBottom: 10,
-  },
-  ingredientItem: {
-    flexDirection: 'row',
-    marginBottom: 8,
-  },
-  ingredientBullet: {
-    fontSize: 16,
-    color: '#4CAF50',
-    marginRight: 10,
-    fontWeight: 'bold',
-  },
-  ingredientText: {
-    fontSize: 16,
-    color: '#666',
-    flex: 1,
-  },
-  instructions: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: '#666',
-    marginBottom: 20,
-  },
-  youtubeButton: {
-    backgroundColor: '#FF0000',
-    padding: 15,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 10,
-    marginBottom: 30,
-  },
-  youtubeButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-});
 
 export default RecipesScreen;

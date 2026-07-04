@@ -1,22 +1,19 @@
-const { getDefaultConfig, mergeConfig } = require('@react-native/metro-config');
+const {getDefaultConfig, mergeConfig} = require('@react-native/metro-config');
 
 /**
  * Metro configuration
  * https://reactnative.dev/docs/metro
  *
- * @type {import('@react-native/metro-config').MetroConfig}
+ * We add `onnx`, `ort` and `bin` to assetExts so the bundler treats model
+ * weights as static assets, and remove them from sourceExts.
  */
+const defaultConfig = getDefaultConfig(__dirname);
+
+/** @type {import('@react-native/metro-config').MetroConfig} */
 const config = {
   resolver: {
-    extraNodeModules: {
-      stream: require.resolve('readable-stream'),
-      util: require.resolve('util'),
-      events: require.resolve('events'),
-      buffer: require.resolve('buffer'),
-      process: require.resolve('process/browser'),
-    },
-    assetExts: ['bin', 'txt', 'jpg', 'png', 'mp3', 'onnx', 'json'],
+    assetExts: [...defaultConfig.resolver.assetExts, 'onnx', 'ort', 'bin'],
   },
 };
 
-module.exports = mergeConfig(getDefaultConfig(__dirname), config);
+module.exports = mergeConfig(defaultConfig, config);

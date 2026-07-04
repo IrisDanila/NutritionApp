@@ -1,561 +1,303 @@
-import React, {useEffect, useMemo, useRef, useState} from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  PermissionsAndroid,
-  Platform,
-  Alert,
-  Image,
-} from 'react-native';
-import LottieView from 'lottie-react-native';
-import Sound from 'react-native-sound';
-import Geolocation from 'react-native-geolocation-service';
-import {storageService, MeditationLog, UserProfile} from '../services/storageService';
-import {gamificationService, XP_REWARDS} from '../services/gamificationService';
-import {useFocusEffect} from '@react-navigation/native';
+import React, {useEffect, useRef, useState} from 'react';
+import {View, Animated, Easing, Pressable} from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
+import {useNavigation} from '@react-navigation/native';
+import Screen from '../components/Screen';
+import Card from '../components/Card';
+import Txt from '../components/Txt';
+import Icon from '../components/Icon';
+import IconButton from '../components/IconButton';
+import Chip from '../components/Chip';
+import Button from '../components/Button';
 import {useTheme} from '../theme/ThemeContext';
+import {radius, spacing} from '../theme/typography';
+import {useAppStore} from '../store/useAppStore';
+import {formatClock} from '../utils/date';
 
-const DURATION_OPTIONS = [5, 10, 15, 20, 30];
-const MEDITATION_AUDIO_URI = Image.resolveAssetSource(
-  require('../../assets/music/Hazelwood - Coming Of Age (freetouse.com).mp3'),
-).uri;
+interface Phase {
+  label: string;
+  sec: number;
+  scale: number; // target circle scale
+}
 
-const MeditationScreen = () => {
-  const {colors} = useTheme();
-  const [durationMinutes, setDurationMinutes] = useState(10);
-  const [remainingSec, setRemainingSec] = useState(durationMinutes * 60);
-  const [isRunning, setIsRunning] = useState(false);
-  const [isMusicEnabled, setIsMusicEnabled] = useState(true);
-  const [logs, setLogs] = useState<MeditationLog[]>([]);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const soundRef = useRef<Sound | null>(null);
+interface Preset {
+  key: string;
+  name: string;
+  subtitle: string;
+  icon: string;
+  phases: Phase[];
+}
+
+const PRESETS: Preset[] = [
+  {
+    key: 'box',
+    name: 'Box Breathing',
+    subtitle: 'Calm focus · 4-4-4-4',
+    icon: 'square-outline',
+    phases: [
+      {label: 'Breathe in', sec: 4, scale: 1},
+      {label: 'Hold', sec: 4, scale: 1},
+      {label: 'Breathe out', sec: 4, scale: 0.55},
+      {label: 'Hold', sec: 4, scale: 0.55},
+    ],
+  },
+  {
+    key: '478',
+    name: '4-7-8 Relax',
+    subtitle: 'Wind down for sleep',
+    icon: 'weather-night',
+    phases: [
+      {label: 'Breathe in', sec: 4, scale: 1},
+      {label: 'Hold', sec: 7, scale: 1},
+      {label: 'Breathe out', sec: 8, scale: 0.5},
+    ],
+  },
+  {
+    key: 'calm',
+    name: 'Calm',
+    subtitle: 'Gentle 4-6 breathing',
+    icon: 'spa',
+    phases: [
+      {label: 'Breathe in', sec: 4, scale: 1},
+      {label: 'Breathe out', sec: 6, scale: 0.55},
+    ],
+  },
+  {
+    key: 'energize',
+    name: 'Energize',
+    subtitle: 'Quick morning reset',
+    icon: 'white-balance-sunny',
+    phases: [
+      {label: 'Breathe in', sec: 2, scale: 1},
+      {label: 'Breathe out', sec: 2, scale: 0.55},
+    ],
+  },
+];
+
+const DURATIONS = [1, 3, 5, 10]; // minutes
+
+export const MeditationScreen: React.FC = () => {
+  const {theme} = useTheme();
+  const navigation = useNavigation();
+  const addMeditation = useAppStore(s => s.addMeditation);
+  const sessions = useAppStore(s => s.meditations);
+
+  const [preset, setPreset] = useState<Preset>(PRESETS[0]);
+  const [minutes, setMinutes] = useState(3);
+  const [running, setRunning] = useState(false);
+  const [remaining, setRemaining] = useState(minutes * 60);
+  const [phaseLabel, setPhaseLabel] = useState(preset.phases[0].label);
+
+  const scale = useRef(new Animated.Value(0.55)).current;
+  const cyclePos = useRef(0); // seconds into the current breathing cycle
+  const phaseIdx = useRef(-1);
+
+  const cycleLen = preset.phases.reduce((a, p) => a + p.sec, 0);
 
   useEffect(() => {
-    loadLogs();
-    loadProfile();
-  }, []);
+    if (!running) return;
+    const tick = setInterval(() => {
+      setRemaining(r => (r <= 1 ? 0 : r - 1));
 
-  useEffect(() => {
-    Sound.setCategory('Playback');
-    return () => {
-      if (soundRef.current) {
-        soundRef.current.stop();
-        soundRef.current.release();
-        soundRef.current = null;
+      // Advance breathing cycle / animate on phase change.
+      cyclePos.current = (cyclePos.current + 1) % cycleLen;
+      let acc = 0;
+      let idx = 0;
+      for (let i = 0; i < preset.phases.length; i++) {
+        if (cyclePos.current < acc + preset.phases[i].sec) {
+          idx = i;
+          break;
+        }
+        acc += preset.phases[i].sec;
       }
-    };
-  }, []);
+      if (idx !== phaseIdx.current) {
+        phaseIdx.current = idx;
+        const ph = preset.phases[idx];
+        setPhaseLabel(ph.label);
+        Animated.timing(scale, {
+          toValue: ph.scale,
+          duration: ph.sec * 1000,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }).start();
+      }
+    }, 1000);
+    return () => clearInterval(tick);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [running, preset]);
 
-  useFocusEffect(
-    React.useCallback(() => {
-      loadLogs();
-      loadProfile();
-    }, []),
+  // Finish when the countdown hits zero — in an effect, so we never write to
+  // the store from inside a state-updater (which warns about cross-component
+  // updates during render).
+  useEffect(() => {
+    if (running && remaining === 0) finish(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [running, remaining]);
+
+  const start = () => {
+    setRemaining(minutes * 60);
+    cyclePosReset();
+    setRunning(true);
+  };
+
+  const cyclePosReset = () => {
+    cyclePos.current = 0;
+    phaseIdx.current = 0;
+    setPhaseLabel(preset.phases[0].label);
+    Animated.timing(scale, {
+      toValue: preset.phases[0].scale,
+      duration: preset.phases[0].sec * 1000,
+      easing: Easing.inOut(Easing.quad),
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const finish = (completed: boolean) => {
+    setRunning(false);
+    const elapsed = minutes * 60 - remaining;
+    const dur = completed ? minutes * 60 : elapsed;
+    if (dur >= 20) addMeditation(preset.name, dur);
+    Animated.timing(scale, {
+      toValue: 0.55,
+      duration: 600,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const totalMins = Math.round(
+    sessions.reduce((a, s) => a + s.durationSec, 0) / 60,
   );
 
-  useEffect(() => {
-    if (!isRunning) {
-      setRemainingSec(durationMinutes * 60);
-    }
-  }, [durationMinutes]);
-
-  useEffect(() => {
-    if (!isRunning) return;
-    if (isMusicEnabled) {
-      startAudio();
-    } else {
-      stopAudio();
-    }
-  }, [isMusicEnabled, isRunning]);
-
-  useEffect(() => {
-    if (!isRunning) return;
-
-    intervalRef.current = setInterval(() => {
-      setRemainingSec(prev => {
-        if (prev <= 1) {
-          stopTimer(true);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
-  }, [isRunning]);
-
-  const loadLogs = async () => {
-    const saved = await storageService.getMeditationLogs();
-    setLogs(saved.slice(0, 5));
-  };
-
-  const loadProfile = async () => {
-    const userProfile = await storageService.getUserProfile();
-    setProfile(userProfile);
-  };
-
-  const requestLocationPermission = async (): Promise<boolean> => {
-    if (Platform.OS === 'android') {
-      const permission = PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION;
-      const alreadyGranted =
-        (await PermissionsAndroid.check(permission)) === true;
-      if (alreadyGranted) return true;
-      const result = await PermissionsAndroid.request(permission, {
-        title: 'Location permission',
-        message: 'Allow location access to tag meditation sessions by city.',
-        buttonPositive: 'Allow',
-        buttonNegative: 'Cancel',
-      });
-      return result === PermissionsAndroid.RESULTS.GRANTED;
-    }
-
-    return true;
-  };
-
-  const reverseGeocode = async (lat: number, lon: number) => {
-    try {
-      const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'NutritionApp/1.0',
-        },
-      });
-      const data = await response.json();
-      const address = data.address || {};
-      return {
-        city:
-          address.city ||
-          address.town ||
-          address.village ||
-          address.suburb ||
-          address.hamlet,
-        region: address.state || address.region,
-        country: address.country,
-      };
-    } catch (error) {
-      return undefined;
-    }
-  };
-
-  const getLocationLabel = async () => {
-    const granted = await requestLocationPermission();
-    if (!granted) return undefined;
-
-    return new Promise<MeditationLog['location'] | undefined>(resolve => {
-      Geolocation.getCurrentPosition(
-        async position => {
-          const location = await reverseGeocode(
-            position.coords.latitude,
-            position.coords.longitude,
-          );
-          resolve(location);
-        },
-        () => resolve(undefined),
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 5000,
-        },
-      );
-    });
-  };
-
-  const saveLog = async () => {
-    const location = await getLocationLabel();
-    await storageService.addMeditationLog({
-      durationSec: durationMinutes * 60,
-      timestamp: Date.now(),
-      location,
-    });
-    await loadLogs();
-  };
-
-  const startTimer = () => {
-    if (isRunning) return;
-    setIsRunning(true);
-    if (isMusicEnabled) {
-      startAudio();
-    }
-  };
-
-  const stopTimer = async (completed: boolean) => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    setIsRunning(false);
-    stopAudio();
-    if (completed) {
-      await saveLog();
-      Alert.alert(
-        'Session complete! 🎉',
-        `Great job! Your meditation was logged.\n\n+${XP_REWARDS.MEDITATION_SESSION} XP earned!`,
-        [{text: 'Awesome!'}],
-      );
-    }
-  };
-
-  const resetTimer = () => {
-    setIsRunning(false);
-    setRemainingSec(durationMinutes * 60);
-    stopAudio();
-  };
-
-  const startAudio = () => {
-    if (soundRef.current) {
-      soundRef.current.setNumberOfLoops(-1);
-      soundRef.current.play();
-      return;
-    }
-
-    const sound = new Sound(MEDITATION_AUDIO_URI, undefined, error => {
-      if (error) {
-        console.warn('Failed to load meditation audio', error);
-        return;
-      }
-      sound.setNumberOfLoops(-1);
-      sound.play();
-    });
-    soundRef.current = sound;
-  };
-
-  const stopAudio = () => {
-    if (soundRef.current) {
-      soundRef.current.stop();
-    }
-  };
-
-  const formattedTime = useMemo(() => {
-    const minutes = Math.floor(remainingSec / 60);
-    const seconds = remainingSec % 60;
-    return `${minutes.toString().padStart(2, '0')}:${seconds
-      .toString()
-      .padStart(2, '0')}`;
-  }, [remainingSec]);
-
-  const animationSource = profile?.gender === 'female'
-    ? require('../../assets/animations/meditation_female.json')
-    : require('../../assets/animations/meditation_male.json');
+  const animatedScale = scale.interpolate({
+    inputRange: [0.5, 1],
+    outputRange: [0.6, 1.15],
+  });
 
   return (
-    <ScrollView style={[styles.container, {backgroundColor: colors.background}]} contentContainerStyle={styles.content}>
-      <View style={[styles.header, {backgroundColor: colors.primary}]}> 
-        <Text style={styles.headerTitle}>Meditation</Text>
-        <Text style={styles.headerSubtitle}>
-          Breathe, focus, and track your mindfulness.
-        </Text>
-      </View>
+    <Screen scroll={!running}>
+      {!running ? (
+        <>
+          <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: spacing.lg}}>
+            <IconButton name="arrow-left" onPress={() => navigation.goBack()} />
+            <Txt variant="h1" style={{marginLeft: spacing.sm}}>
+              Meditation
+            </Txt>
+          </View>
 
-      <View style={[styles.timerCard, {backgroundColor: colors.card}]}> 
-        <View style={styles.animationContainer}>
-          <LottieView
-            source={animationSource}
-            autoPlay
-            loop
-            style={styles.animation}
+          <Card
+            flat
+            style={{backgroundColor: theme.gradientCalm[0] + '22', borderColor: 'transparent'}}>
+            <View style={{flexDirection: 'row', alignItems: 'center'}}>
+              <Icon name="meditation" size={28} color={theme.gradientCalm[0]} />
+              <View style={{marginLeft: spacing.md}}>
+                <Txt variant="h3">{sessions.length} sessions</Txt>
+                <Txt tone="muted" variant="caption">
+                  {totalMins} minutes of calm so far
+                </Txt>
+              </View>
+            </View>
+          </Card>
+
+          <Txt variant="h3" style={{marginTop: spacing.xl, marginBottom: spacing.sm}}>
+            Choose a technique
+          </Txt>
+          {PRESETS.map(p => (
+            <Card
+              key={p.key}
+              onPress={() => setPreset(p)}
+              style={{
+                marginBottom: spacing.sm,
+                borderColor: preset.key === p.key ? theme.primary : theme.border,
+                borderWidth: preset.key === p.key ? 2 : 1,
+              }}>
+              <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                <View
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: radius.md,
+                    backgroundColor: theme.primarySoft,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                  <Icon name={p.icon} size={22} color={theme.primary} />
+                </View>
+                <View style={{flex: 1, marginLeft: spacing.md}}>
+                  <Txt variant="h3">{p.name}</Txt>
+                  <Txt variant="caption" tone="muted">
+                    {p.subtitle}
+                  </Txt>
+                </View>
+                {preset.key === p.key ? (
+                  <Icon name="check-circle" size={22} color={theme.primary} />
+                ) : null}
+              </View>
+            </Card>
+          ))}
+
+          <Txt variant="h3" style={{marginTop: spacing.lg, marginBottom: spacing.sm}}>
+            Duration
+          </Txt>
+          <View style={{flexDirection: 'row', gap: spacing.sm}}>
+            {DURATIONS.map(d => (
+              <Chip
+                key={d}
+                label={`${d} min`}
+                selected={minutes === d}
+                onPress={() => setMinutes(d)}
+              />
+            ))}
+          </View>
+
+          <Button
+            title="Begin session"
+            icon="play"
+            full
+            onPress={start}
+            style={{marginTop: spacing.xl}}
+          />
+        </>
+      ) : (
+        <View style={{flex: 1, alignItems: 'center', justifyContent: 'center'}}>
+          <Txt variant="h2" tone="muted">
+            {preset.name}
+          </Txt>
+          <View
+            style={{
+              width: 280,
+              height: 280,
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginVertical: spacing.xxl,
+            }}>
+            <Animated.View style={{transform: [{scale: animatedScale}]}}>
+              <LinearGradient
+                colors={theme.gradientCalm}
+                style={{
+                  width: 220,
+                  height: 220,
+                  borderRadius: 110,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                <Txt variant="h1" color="#fff">
+                  {phaseLabel}
+                </Txt>
+              </LinearGradient>
+            </Animated.View>
+          </View>
+          <Txt variant="displayLg">{formatClock(remaining)}</Txt>
+          <Button
+            title="End session"
+            variant="secondary"
+            icon="stop"
+            onPress={() => finish(false)}
+            style={{marginTop: spacing.xxl}}
           />
         </View>
-        <Text style={[styles.timerText, {color: colors.text}]}>{formattedTime}</Text>
-        <Text style={[styles.timerLabel, {color: colors.mutedText}]}>minutes remaining</Text>
-
-        <View style={styles.timerControls}>
-          {isRunning ? (
-            <TouchableOpacity
-              style={[styles.controlButton, styles.pauseButton]}
-              onPress={() => stopTimer(false)}>
-              <Text style={styles.controlButtonText}>Pause</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={[styles.controlButton, styles.startButton]}
-              onPress={startTimer}>
-              <Text style={styles.controlButtonText}>Start</Text>
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity
-            style={[styles.controlButton, styles.resetButton]}
-            onPress={resetTimer}>
-            <Text style={styles.resetButtonText}>Reset</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <View style={[styles.durationCard, {backgroundColor: colors.card}]}> 
-        <Text style={[styles.sectionTitle, {color: colors.text}]}>Choose duration</Text>
-        <View style={styles.durationOptions}>
-          {DURATION_OPTIONS.map(option => (
-            <TouchableOpacity
-              key={option}
-              style={[
-                styles.durationChip,
-                {backgroundColor: colors.surface},
-                durationMinutes === option && [styles.durationChipActive, {backgroundColor: colors.primary}],
-              ]}
-              onPress={() => setDurationMinutes(option)}>
-              <Text
-                style={[
-                  styles.durationChipText,
-                  {color: colors.text},
-                  durationMinutes === option && styles.durationChipTextActive,
-                ]}>
-                {option} min
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-
-      <View style={[styles.musicCard, {backgroundColor: colors.card}]}> 
-        <View>
-          <Text style={[styles.sectionTitle, {color: colors.text}]}>Meditation music</Text>
-          <Text style={[styles.musicSubtitle, {color: colors.mutedText}]}> 
-            {isMusicEnabled ? 'Music on while timer runs' : 'Music is off'}
-          </Text>
-        </View>
-        <TouchableOpacity
-          style={[
-            styles.musicToggle,
-            {backgroundColor: isMusicEnabled ? colors.primary : colors.border},
-          ]}
-          onPress={() => setIsMusicEnabled(prev => !prev)}>
-          <Text style={styles.musicToggleText}>
-            {isMusicEnabled ? 'On' : 'Off'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={[styles.logsCard, {backgroundColor: colors.card}]}> 
-        <Text style={[styles.sectionTitle, {color: colors.text}]}>Last 5 sessions</Text>
-        {logs.length === 0 ? (
-          <Text style={[styles.emptyText, {color: colors.mutedText}]}>No meditation sessions yet.</Text>
-        ) : (
-          logs.slice(0, 5).map(log => {
-            const date = new Date(log.timestamp);
-            const locationLabel = [
-              log.location?.city,
-              log.location?.region,
-              log.location?.country,
-            ]
-              .filter(Boolean)
-              .join(', ');
-            return (
-              <View key={log.id} style={styles.logItem}>
-                <View>
-                  <Text style={[styles.logTitle, {color: colors.text}]}>
-                    {Math.round(log.durationSec / 60)} min session
-                  </Text>
-                  <Text style={[styles.logDate, {color: colors.mutedText}]}>
-                    {date.toLocaleDateString()} • {date.toLocaleTimeString()}
-                  </Text>
-                </View>
-                <Text style={[styles.logLocation, {color: colors.primary}]}> 
-                  {locationLabel || 'Location unavailable'}
-                </Text>
-              </View>
-            );
-          })
-        )}
-      </View>
-    </ScrollView>
+      )}
+    </Screen>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F5F7FA',
-  },
-  content: {
-    paddingBottom: 40,
-  },
-  header: {
-    backgroundColor: '#4CAF50',
-    padding: 24,
-    paddingTop: 50,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-  },
-  headerTitle: {
-    fontSize: 26,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  headerSubtitle: {
-    marginTop: 6,
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
-  },
-  timerCard: {
-    margin: 16,
-    marginTop: -10,
-    backgroundColor: 'white',
-    borderRadius: 20,
-    padding: 20,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  animationContainer: {
-    width: 160,
-    height: 160,
-    marginBottom: 10,
-  },
-  animation: {
-    width: '100%',
-    height: '100%',
-  },
-  timerText: {
-    fontSize: 44,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  timerLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 16,
-  },
-  timerControls: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  controlButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-  },
-  startButton: {
-    backgroundColor: '#4CAF50',
-  },
-  pauseButton: {
-    backgroundColor: '#FFB300',
-  },
-  resetButton: {
-    backgroundColor: '#F5F5F5',
-  },
-  controlButtonText: {
-    color: 'white',
-    fontWeight: '600',
-  },
-  resetButtonText: {
-    color: '#333',
-    fontWeight: '600',
-  },
-  durationCard: {
-    marginHorizontal: 16,
-    marginTop: 10,
-    backgroundColor: 'white',
-    borderRadius: 18,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  musicCard: {
-    marginHorizontal: 16,
-    marginTop: 12,
-    backgroundColor: 'white',
-    borderRadius: 18,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  musicSubtitle: {
-    fontSize: 12,
-    marginTop: 4,
-  },
-  musicToggle: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 16,
-  },
-  musicToggleText: {
-    color: 'white',
-    fontWeight: '700',
-    fontSize: 12,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 12,
-  },
-  durationOptions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  durationChip: {
-    backgroundColor: '#F1F5F9',
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 16,
-  },
-  durationChipActive: {
-    backgroundColor: '#4CAF50',
-  },
-  durationChipText: {
-    color: '#333',
-    fontWeight: '600',
-  },
-  durationChipTextActive: {
-    color: 'white',
-  },
-  logsCard: {
-    marginHorizontal: 16,
-    marginTop: 16,
-    backgroundColor: 'white',
-    borderRadius: 18,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  emptyText: {
-    color: '#666',
-    fontSize: 13,
-  },
-  logItem: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
-  logTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-  },
-  logDate: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 4,
-  },
-  logLocation: {
-    marginTop: 6,
-    fontSize: 12,
-    color: '#4CAF50',
-  },
-});
 
 export default MeditationScreen;

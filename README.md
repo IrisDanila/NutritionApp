@@ -1,303 +1,179 @@
-# Nutrition App - React NativeThis is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
-
-
-
-A comprehensive nutrition tracking mobile application built with React Native (without Expo) featuring meal tracking, recipe discovery, activity logging, and AI-powered food recognition.# Getting Started
-
-
-
-## Features> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
-
-
-
-### 🏠 Home Screen## Step 1: Start Metro
-
-- **Day Streak Tracker**: Keeps track of consecutive days of app usage
-
-- **Meal Tracking**: Log breakfast, lunch, and dinner with detailed nutrition values (calories, protein, carbs, fat)First, you will need to run **Metro**, the JavaScript build tool for React Native.
-
-- **Activity Widget**: Track daily steps and add custom activities with duration and calories burned
-
-- **Water Tracker**: Monitor daily water intake with visual progress barTo start the Metro dev server, run the following command from the root of your React Native project:
-
-- **Notes**: Add daily notes about your health and wellness
-
-```sh
-
-### 📸 Food Scanner Screen# Using npm
-
-- **AI Food Recognition**: Mock AI scanner to identify foods (ready for ML integration)npm start
-
-- **Nutrition API Integration**: Get detailed nutrition information using CalorieNinjas API
-
-- **Popular Foods**: Quick access to common foods# OR using Yarn
-
-- **Scan History**: Keep track of previously scanned foodsyarn start
-
-- **"I will eat this" Feature**: Add scanned foods directly to your daily meal log```
-
-
-
-### 🍳 Recipes Screen## Step 2: Build and run your app
-
-- **Recipe Search**: Search meals by name using TheMealDB API
-
-- **Categories**: Browse recipes by categoryWith Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-- **Detailed Instructions**: View ingredients, cooking instructions, and nutrition info
-
-- **Video Tutorials**: Links to cooking videos (when available)### Android
-
-
-
-### 👤 Profile Screen```sh
-
-- **Personal Information**: Name, age, weight, height# Using npm
-
-- **BMI Calculator**: Automatic BMI calculation with categorynpm run android
-
-- **Goals Setting**: Set weight goals (lose/maintain/gain) and daily targets
-
-- **Weekly Progress**: View stats for the past 7 days# OR using Yarn
-
-- **Editable Profile**: Update your information anytimeyarn android
-
-```
-
-## Tech Stack
-
-### iOS
-
-- **React Native CLI** (without Expo)
-
-- **React Navigation** - Bottom tabs navigationFor iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-- **AsyncStorage** - Local data persistence
-
-- **Axios** - API requestsThe first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-- **TypeScript** - Type safety
-
-```sh
-
-## APIs Usedbundle install
-
-```
-
-1. **TheMealDB API** - Recipe database
-
-   - Free test API key: `1`Then, and every time you update your native dependencies, run:
-
-   - Documentation: https://www.themealdb.com/api.php
-
-```sh
-
-2. **CalorieNinjas API** - Nutrition informationbundle exec pod install
-
-   - Get your API key at: https://calorieninjas.com/api```
-
-   - Update the key in `src/services/nutritionService.ts`
-
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
-
-## Setup Instructions
-
-```sh
-
-### Prerequisites# Using npm
-
-- Node.js (v18 or later)npm run ios
-
-- npm or yarn
-
-- Android Studio (for Android development)# OR using Yarn
-
-- Xcode (for iOS development - macOS only)yarn ios
-
-- JDK 17 or later```
-
-
-
-### InstallationIf everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
-
-
-
-1. **Navigate to the project directory:**This is one way to run your app — you can also build it directly from Android Studio or Xcode.
-
-   ```bash
-
-   cd d:\projects\nutrition-app\NutritionApp## Step 3: Modify your app
-
-   ```
-
-Now that you have successfully run the app, let's make changes!
-
-2. **Install dependencies:**
-
-   ```bashOpen `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-   npm install
-
-   ```When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-
-
-3. **Configure API Keys:**- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-
-   - **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-   Open `src/services/nutritionService.ts` and add your CalorieNinjas API key:
-
-   ```typescript## Congratulations! :tada:
-
-   const API_KEY = 'YOUR_API_KEY_HERE';
-
-   ```You've successfully run and modified your React Native App. :partying_face:
-
-
-
-4. **Android Setup:**### Now what?
-
-   
-
-   For react-native-vector-icons, you may need to link fonts. The app should work out of the box, but if you have issues with icons, add to `android/app/build.gradle`:- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-
-   ```gradle- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-   apply from: file("../../node_modules/react-native-vector-icons/fonts.gradle")
-
-   ```# Troubleshooting
-
-
-
-5. **iOS Setup (macOS only):**If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-   ```bash
-
-   cd ios# Learn More
-
-   pod install
-
-   cd ..To learn more about React Native, take a look at the following resources:
-
-   ```
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-
-### Running the App- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-
-**Start Metro Bundler:**- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-
-```bash- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
-
-npm start
-```
-
-**Android:**
-```bash
-npm run android
-```
-
-**iOS (macOS only):**
-```bash
-npm run ios
-```
-
-## Project Structure
-
-```
-NutritionApp/
-├── src/
-│   ├── screens/
-│   │   ├── HomeScreen.tsx          # Main dashboard
-│   │   ├── FoodScannerScreen.tsx   # AI food scanner
-│   │   ├── RecipesScreen.tsx       # Recipe browser
-│   │   └── ProfileScreen.tsx       # User profile
-│   ├── services/
-│   │   ├── storageService.ts       # AsyncStorage wrapper
-│   │   ├── mealDBService.ts        # TheMealDB API
-│   │   └── nutritionService.ts     # CalorieNinjas API
-│   └── Navigation.tsx              # Navigation setup
-├── App.tsx                         # App entry point
-└── package.json
-```
-
-## Key Features Implementation
-
-### Data Persistence
-All data is stored locally using AsyncStorage:
-- Daily meals and nutrition
-- Activity logs
-- Water intake
-- User profile
-- Food scan history
-- Streak data
-
-### Home Screen Integration
-When you tap "I will eat this!" in the Food Scanner:
-1. Select meal type (breakfast/lunch/dinner/snack)
-2. Food is added to daily log
-3. Home screen stats automatically update
-4. Calories, protein, carbs, and fat are calculated
-
-### Nutrition Tracking
-Each meal displays:
-- Total calories
-- Protein (g)
-- Carbohydrates (g)
-- Fat (g)
-- Fiber (g)
-- Sugar (g)
-
-## Future Enhancements
-
-- **Real AI Integration**: Replace mock AI with actual ML model for food recognition
-- **Camera Integration**: Use device camera for food photos
-- **Charts & Graphs**: Visual progress tracking
-- **Barcode Scanner**: Scan product barcodes for nutrition info
-- **Meal Planning**: Plan meals for the week
-
-- **Social Features**: Share progress with friends
-- **Offline Mode**: Full offline functionality
-- **Export Data**: Export nutrition data to CSV/PDF
-
-## Development Notes
-
-- The app uses mock AI food recognition. To implement real AI:
-  1. Integrate TensorFlow Lite or ML Kit
-  2. Train or use a pre-trained food recognition model
-  3. Replace the `mockAIScan` function in FoodScannerScreen
-
-- CalorieNinjas API has a free tier with limitations. For production, consider:
-  - Getting a paid API key
-  - Implementing caching
-  - Using alternative nutrition APIs
-
-## Troubleshooting
-
-**Metro bundler cache issues:**
-```bash
-npm start -- --reset-cache
-```
-
-**Android build issues:**
-```bash
-cd android
-./gradlew clean
-cd ..
-npm run android
-```
-
-**iOS build issues:**
-```bash
-cd ios
-pod install
-cd ..
-npm run ios
-```
+# 🥗 NutriLife 2.0
+
+A bare **React Native** (no Expo) Android nutrition & wellness app that runs two
+AI models **fully on-device** with ONNX Runtime, and pulls nutrition facts from
+the **USDA FoodData Central** API.
+
+- 📷 **AI Food Scanner** — MobileNetV2 fine-tuned on Food‑101 recognises a dish
+  from a photo, then fetches its nutrition from USDA.
+- 🤖 **AI Coach** — SmolLM2‑360M‑Instruct (q4f16) answers nutrition questions
+  on-device, aware of your profile and today's intake. Falls back to a smart
+  rule-based coach if the model isn't present.
+- 📒 **Food diary** with meals, macros and a calorie ring.
+- 🎮 **Gamification** — 3 seeded **daily challenges**, **XP & levels** with
+  ranks, a **workout log**, and **30+ long-term achievements**.
+- 💧 **Water tracker**, 🧘 **meditation / breathing**, ⚖️ **weight + BMI**,
+  📈 **history & charts**, and a 🌗 **dark / light theme toggle**.
+
+Everything is stored locally on the device (AsyncStorage). No account, no cloud.
 
 ---
 
-Built with ❤️ using React Native
+## 1. Prerequisites (on your build machine)
+
+- Node.js ≥ 18
+- JDK 17
+- Android Studio + Android SDK (Platform 34, Build-Tools 34, NDK 26.1.x)
+- A device/emulator with **API 24+** and ideally ≥ 4 GB RAM (the LLM is heavy)
+
+## 2. Install JS dependencies
+
+```bash
+npm install
+```
+
+> This project intentionally ships **no `node_modules`**. The exact versions are
+> pinned in `package.json`.
+
+## 3. Stage the AI models + tokenizer
+
+The two `.onnx` files live in `./models`. Copy them into the Android assets and
+fetch the tokenizer:
+
+```bash
+node scripts/copy-models.js       # models/*.onnx  -> android assets
+node scripts/fetch-tokenizer.js   # downloads SmolLM2 tokenizer.json
+```
+
+If your network blocks Hugging Face, download `tokenizer.json` manually from
+`https://huggingface.co/HuggingFaceTB/SmolLM2-360M-Instruct/resolve/main/tokenizer.json`
+and drop it at `android/app/src/main/assets/tokenizer/tokenizer.json`.
+
+## 4. Generate the Gradle wrapper jar (one-time)
+
+The binary `android/gradle/wrapper/gradle-wrapper.jar` is **not** included (it
+can't be checked in as text). Generate it once — any of these works:
+
+- Open the `android/` folder in **Android Studio** → it will set up the wrapper
+  automatically, **or**
+- If you have Gradle installed: `cd android && gradle wrapper --gradle-version 8.8`
+
+## 5. Run it
+
+```bash
+npm start            # terminal 1: Metro bundler
+npm run android      # terminal 2: build + install the debug app
+```
+
+A debug APK can be built directly with:
+
+```bash
+npm run build:android   # android/app/build/outputs/apk/release/app-release.apk
+```
+
+> The release APK is ~**290 MB** because the SmolLM2 model (~270 MB) is bundled.
+> That's expected for a fully offline LLM.
+
+---
+
+## How the AI models are used
+
+### Food recognition (`src/services/onnx/foodModel.ts`)
+1. Pick/take a photo (`react-native-image-picker`, resized to ≤512 px, base64).
+2. `imagePreprocess.ts` decodes the JPEG (pure-JS `jpeg-js`), center-crops,
+   bilinearly resizes to **224×224**, and normalises to `[-1, 1]` → `float32`
+   NCHW tensor `[1,3,224,224]`.
+3. ONNX Runtime runs MobileNetV2 → 101 logits → softmax → top-5.
+4. Labels map to Food‑101 classes (`food101Labels.ts`); the chosen class is
+   searched on USDA for real nutrition, then logged.
+
+> ⚠️ Verify `FOOD101_LABELS` order matches your model's `config.json`
+> `id2label`. It uses the canonical Hugging Face `food101` alphabetical order.
+
+### AI Coach (`src/services/onnx/llm.ts`, `tokenizer.ts`, `coach.ts`)
+- A self-contained **byte-level BPE tokenizer** reads `tokenizer.json`.
+- Prompts use the SmolLM2 chat template (`<|im_start|>role … <|im_end|>`),
+  injected with your goals + today's macros/water as system context.
+- Autoregressive generation manages the **KV cache** (32 layers, 5 KV heads,
+  head_dim 64) by shuttling `present.*` outputs back as `past_key_values.*`
+  (fp16 tensors are passed straight through; only logits are read).
+- Sampling: temperature + top-k + top-p + repetition penalty, streamed token by
+  token into the chat UI.
+
+If the model or tokenizer is missing, or the device can't run fp16, the coach
+silently switches to a helpful **rule-based** responder so the app never breaks.
+
+### Gamification (`src/services/{levels,challenges,achievements}.ts`)
+- **XP & levels**: `levelInfo()` maps total XP to a level (gaps grow each level)
+  and a **rank** (Sprout → Seedling → Grower → Achiever → Athlete → Champion →
+  Legend), each with its own colour and emblem.
+- **Daily challenges**: a pool of hand-written quests across hydration /
+  nutrition / fitness / mind. `getDailyChallenges(date)` picks **3 per day**,
+  seeded by the date (stable all day, fresh tomorrow), preferring distinct
+  categories. *Auto* challenges tick off from tracked data (e.g. "drink 2 L",
+  "hit protein", "30 min workout"); *manual* ones are tapped done. Completing a
+  quest grants XP once (deduped per day in the store).
+- **Workout log**: a lightweight gym/run/yoga/… logger feeds the fitness
+  challenges and gym achievements.
+- **Achievements**: 30+ tiered goals incl. *Iron Discipline* (gym on 90 days),
+  *Two-Week Discipline* (under calories 14 days straight), *Centurion* (log 100
+  days), meditation/water/level milestones, … Each unlock awards bonus XP.
+- All XP claiming happens idempotently in `useGamification()`.
+
+> **Assets**: rank emblems and badges are **self-generated SVG vector art**
+> (`LevelBadge`, `LevelCard`) plus the bundled MaterialCommunityIcons set —
+> deliberately **not** scraped images, so everything is license-clean and the
+> app stays fully offline. Swap in raster art under `android/.../res` if desired.
+
+### USDA FoodData Central (`src/services/usda.ts`)
+- Free API; a working key is preconfigured (editable in **Settings**).
+- Results are normalised to **per‑100 g** macros and scaled to your portion.
+
+---
+
+## Project structure
+
+```
+App.tsx                     providers + hydration gate
+index.js                    entry
+src/
+  theme/                    palettes, ThemeProvider, typography
+  store/                    zustand store (persisted) + domain types
+  services/
+    usda.ts                 USDA client
+    nutrition.ts            BMR/TDEE/macros/BMI
+    coach.ts                coach orchestration + fallback
+    tips.ts                 offline daily tips
+    levels.ts               XP curve + ranks
+    challenges.ts           daily-quest pool + seeded picker
+    achievements.ts         long-term achievement definitions
+    onnx/                   modelManager, foodModel, imagePreprocess,
+                            food101Labels, tokenizer, llm
+  components/               Screen, Card, Button, ProgressRing, charts,
+                            LevelBadge, LevelCard, ChallengeCard, …
+  screens/                  Onboarding, Dashboard, Diary, Scan, Coach,
+                            Water, Meditation, History, Weight, More,
+                            Settings, Achievements, Challenges, FoodSearch,
+                            FoodDetail
+  navigation/               root stack + bottom tabs
+  hooks/                    useNutrition (targets/totals/streak),
+                            useGamification (XP, quests, achievements)
+scripts/                    copy-models.js, fetch-tokenizer.js
+android/                    native project (Kotlin, RN 0.74.5)
+```
+
+## Known limitations / notes
+
+- **On-device LLM speed**: 360M params on a phone CPU generates a few tokens/sec.
+  Responses are capped (~240 tokens) and streamed. Use a recent device.
+- **float16 in ORT-RN**: KV-cache tensors are fp16. If a particular
+  `onnxruntime-react-native` build rejects fp16 I/O, the coach falls back
+  automatically; you can also export an fp32 model variant.
+- App icon is a simple vector placeholder — replace `res/drawable/ic_launcher.xml`
+  (or add proper mipmaps) for production.
+- New Architecture (Fabric/TurboModules) is **off** for max library compatibility.
+
+## License / data
+
+Nutrition data © USDA FoodData Central. Models per their respective licenses
+(MobileNetV2/Food‑101, SmolLM2 — Apache‑2.0).

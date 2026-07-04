@@ -1,8 +1,15 @@
 {
-  "extends": "@react-native/typescript-config",
+  "extends": "@react-native/typescript-config/tsconfig.json",
   "compilerOptions": {
-    "skipLibCheck": true
+    "jsx": "react-jsx",
+    "strict": true,
+    "noImplicitAny": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "baseUrl": "."
   },
-  "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["**/node_modules", "**/Pods"]
+  "include": ["src", "index.js", "App.tsx"],
+  "exclude": ["node_modules", "android", "ios"]
 }
